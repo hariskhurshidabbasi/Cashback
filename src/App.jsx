@@ -21,10 +21,27 @@ const EP_DISPLAY = '0300-1234567';
 
 const BASE_CASHBACK_PERCENTAGE = 15; // 15% cashback on product price
 const REFER_BONUS = 1500;
+const INVESTMENT_RETURN_PERCENTAGE = 12; // 12% return on investment
+const MIN_WITHDRAWAL_AMOUNT = 500;
 
 // Calculate cashback based on product price (15% of price)
 const calculateCashback = (price) =>
   Math.round((price * BASE_CASHBACK_PERCENTAGE) / 100);
+
+// Calculate investment return
+const calculateInvestmentReturn = (amount) =>
+  Math.round((amount * INVESTMENT_RETURN_PERCENTAGE) / 100);
+
+// Calculate daily profit
+const calculateDailyProfit = (
+  price,
+  cycleDays = 300,
+  returnPercentage = 32,
+) => {
+  const totalProfit = Math.round((price * returnPercentage) / 100);
+  const dailyProfit = Math.round(totalProfit / cycleDays);
+  return { dailyProfit, totalProfit, cycleDays, returnPercentage };
+};
 
 const PRODUCTS = [
   {
@@ -35,6 +52,8 @@ const PRODUCTS = [
     price: 12999,
     description:
       'Energy efficient ceiling fan with remote control, 5-star rating',
+    returnPercentage: 32,
+    cycleDays: 300,
   },
   {
     id: 2,
@@ -44,6 +63,8 @@ const PRODUCTS = [
     price: 7499,
     description:
       'Heavy duty pedestal fan with 3 speed settings, ideal for home and office',
+    returnPercentage: 30,
+    cycleDays: 280,
   },
   {
     id: 3,
@@ -52,6 +73,8 @@ const PRODUCTS = [
     img: 'https://s.alicdn.com/@sc04/kf/H30882940ffdc4a89922a225dad8c5bfc3/12-Inch-Table-Fan-with-Light-Bulb-Rechargeable-Electric-Solar-Fan-Emergency-High-Wind-Power-Shaking-Head-Solar-Fan.jpg_300x300.jpg',
     price: 4599,
     description: 'Compact table fan for personal use, energy saving motor',
+    returnPercentage: 28,
+    cycleDays: 260,
   },
   {
     id: 4,
@@ -61,6 +84,8 @@ const PRODUCTS = [
     price: 15999,
     description:
       'Sleek tower fan with oscillation, 3 speed modes, timer function',
+    returnPercentage: 32,
+    cycleDays: 300,
   },
   {
     id: 5,
@@ -69,6 +94,8 @@ const PRODUCTS = [
     img: 'https://images.pexels.com/photos/841130/pexels-photo-841130.jpeg?w=600&q=80',
     price: 8500,
     description: 'Premium cast iron dumbbells with stand, perfect for home gym',
+    returnPercentage: 30,
+    cycleDays: 280,
   },
   {
     id: 6,
@@ -78,6 +105,8 @@ const PRODUCTS = [
     price: 2999,
     description:
       '5-piece resistance band set with door anchor, exercise guide included',
+    returnPercentage: 25,
+    cycleDays: 250,
   },
   {
     id: 7,
@@ -86,6 +115,8 @@ const PRODUCTS = [
     img: 'https://www.jimkiddsports.com.au/cdn/shop/files/SHOPIFY_0000s_0001_HARBINGER-PRO-SPEED-ROPE-24351-_2.png?v=1743664296&width=2048',
     price: 899,
     description: 'Adjustable speed jump rope with ball bearings, foam handles',
+    returnPercentage: 20,
+    cycleDays: 200,
   },
   {
     id: 8,
@@ -94,6 +125,8 @@ const PRODUCTS = [
     img: 'https://cdn.shopify.com/s/files/1/0044/9341/0393/files/gaiam-performance-dry-grip-yoga-mat-14.jpg?v=1610562932',
     price: 2499,
     description: 'Non-slip eco-friendly yoga mat with carrying strap',
+    returnPercentage: 25,
+    cycleDays: 250,
   },
   {
     id: 9,
@@ -103,6 +136,8 @@ const PRODUCTS = [
     price: 1299,
     description:
       'Dual wheel ab roller with knee pad, core strengthening equipment',
+    returnPercentage: 22,
+    cycleDays: 220,
   },
   {
     id: 10,
@@ -112,6 +147,8 @@ const PRODUCTS = [
     price: 5499,
     description:
       'Stainless steel electric kettle with auto shut-off, boil-dry protection',
+    returnPercentage: 28,
+    cycleDays: 260,
   },
   {
     id: 11,
@@ -121,6 +158,8 @@ const PRODUCTS = [
     price: 3999,
     description:
       'Thermo-spot technology, titanium non-stick coating, dishwasher safe',
+    returnPercentage: 26,
+    cycleDays: 250,
   },
   {
     id: 12,
@@ -130,6 +169,8 @@ const PRODUCTS = [
     price: 18999,
     description:
       'Digital air fryer with 8 presets, oil-free cooking, 1700W power',
+    returnPercentage: 35,
+    cycleDays: 320,
   },
   {
     id: 13,
@@ -139,6 +180,8 @@ const PRODUCTS = [
     price: 15999,
     description:
       'Noise cancelling earbuds with 20hr battery life, IPX4 water resistant',
+    returnPercentage: 32,
+    cycleDays: 300,
   },
   {
     id: 14,
@@ -147,6 +190,8 @@ const PRODUCTS = [
     img: 'https://dynsol.pk/cdn/shop/files/Xiaomi_33W_Power_Bank_20000mAh_Blue_Integrated_Cable_Best_Price_in_Pakistan_Dynsol.pk.webp?v=1773478299&width=416',
     price: 4999,
     description: 'Fast charging power bank with 18W output, dual USB ports',
+    returnPercentage: 27,
+    cycleDays: 260,
   },
   {
     id: 15,
@@ -155,6 +200,8 @@ const PRODUCTS = [
     img: 'https://cdn1.npcdn.net/npimg/1752899168ebf9ac62dd7dbcd456eb5cc1d83ca48f.webp?md5id=d0866fb7fef7340334755089f89bdfeb&new_width=1000&new_height=1000&size=max&w=1774400981&from=jpg&type=1',
     price: 3499,
     description: 'RGB smart LED strip with app control, music sync feature',
+    returnPercentage: 25,
+    cycleDays: 240,
   },
   {
     id: 16,
@@ -163,12 +210,22 @@ const PRODUCTS = [
     img: 'https://xcessorieshub.com/wp-content/uploads/2025/07/Anker-A8355.webp',
     price: 8999,
     description: '7-port USB-C hub with 4K HDMI, Ethernet, USB 3.0 ports',
+    returnPercentage: 30,
+    cycleDays: 280,
   },
 ].map((p) => ({
   ...p,
   cashback: calculateCashback(p.price),
+  profitDetails: calculateDailyProfit(p.price, p.cycleDays, p.returnPercentage),
   desc: `Assalam o Alaikum! ${p.description} Is product ko buy karne par aapko Rs. ${calculateCashback(p.price).toLocaleString()} cashback milega (24 ghante ke andar). Agar aap kisi dost ko refer karte hain, to aapko ${REFER_BONUS} extra cashback milega.`,
 }));
+
+// Payment method constants
+const PAYMENT_METHODS = {
+  EASYPAISA: 'easypaisa',
+  JAZZCASH: 'jazzcash',
+  BANK_CARD: 'bank_card',
+};
 
 // ─── Profile Dropdown Component ───────────────────────────────────────────────
 function ProfileDropdown({
@@ -192,7 +249,6 @@ function ProfileDropdown({
   const initials = currentUser?.phone
     ? currentUser.phone.replace(/\D/g, '').slice(-4, -2)
     : 'U';
-
   const shortPhone = currentUser?.phone
     ? currentUser.phone.replace('+92', '0').replace(/(\d{4})(\d{7})/, '$1-$2')
     : '';
@@ -205,7 +261,7 @@ function ProfileDropdown({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          background: 'rgba(255,255,255,0.1)',
+          background: 'rgb(228, 220, 220)',
           border: '1px solid rgba(255,255,255,0.2)',
           color: '#fff',
           padding: '7px 13px',
@@ -233,15 +289,14 @@ function ProfileDropdown({
         <span>📱 {shortPhone}</span>
         <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
       </button>
-
       {open && (
         <div
           style={{
             position: 'absolute',
             top: 'calc(100% + 8px)',
             right: 0,
-            background: '#000000',
-            border: '0.5px solid var(--color-border-tertiary, #e0e0e0)',
+            background: '#ffffff',
+            border: '0.5px solid #e0e0e0',
             borderRadius: 14,
             width: 280,
             zIndex: 999,
@@ -289,7 +344,6 @@ function ProfileDropdown({
               </div>
             </div>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
             <StatBox
               label="Orders"
@@ -317,9 +371,23 @@ function ProfileDropdown({
               border
             />
           </div>
-
           <Divider />
-
+          <MenuItem
+            icon="💰"
+            label="Investment"
+            onClick={() => {
+              setOpen(false);
+              onNavigate('/investment');
+            }}
+          />
+          <MenuItem
+            icon="🏦"
+            label="Withdraw"
+            onClick={() => {
+              setOpen(false);
+              onNavigate('/withdraw');
+            }}
+          />
           <MenuItem
             icon="📦"
             label="Meri Orders"
@@ -329,7 +397,7 @@ function ProfileDropdown({
             }}
           />
           <MenuItem
-            icon="💰"
+            icon="💸"
             label="Cashback History"
             onClick={() => {
               setOpen(false);
@@ -344,9 +412,7 @@ function ProfileDropdown({
               onNavigate('/refer');
             }}
           />
-
           <Divider />
-
           <MenuItem
             icon="🚪"
             label="Logout"
@@ -368,30 +434,20 @@ function StatBox({ label, value, color, border }) {
       style={{
         padding: '12px 8px',
         textAlign: 'center',
-        borderRight: border
-          ? '0.5px solid var(--color-border-tertiary, #eee)'
-          : 'none',
+        borderRight: border ? '0.5px solid #eee' : 'none',
       }}
     >
       <div
         style={{
           fontSize: 13,
           fontWeight: 500,
-          color: color || 'var(--color-text-primary)',
+          color: color || '#000',
           lineHeight: 1.2,
         }}
       >
         {value}
       </div>
-      <div
-        style={{
-          fontSize: 11,
-          color: 'var(--color-text-secondary)',
-          marginTop: 3,
-        }}
-      >
-        {label}
-      </div>
+      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{label}</div>
     </div>
   );
 }
@@ -410,8 +466,8 @@ function MenuItem({ icon, label, onClick, danger }) {
         gap: 10,
         cursor: 'pointer',
         fontSize: 13,
-        color: danger ? '#c0392b' : 'var(--color-text-primary)',
-        background: hover ? 'var(--color-background-secondary)' : 'transparent',
+        color: danger ? '#c0392b' : '#000',
+        background: hover ? '#f5f5f5' : 'transparent',
         transition: 'background 0.15s',
       }}
     >
@@ -424,13 +480,1118 @@ function MenuItem({ icon, label, onClick, danger }) {
 }
 
 function Divider() {
+  return <div style={{ height: '0.5px', background: '#eee' }} />;
+}
+
+// ─── Investment Page Component ────────────────────────────────────────────
+function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
+  const [investmentAmount, setInvestmentAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [investments, setInvestments] = useState([]);
+  const [loadingInvestments, setLoadingInvestments] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    fetchInvestments();
+  }, [currentUser, navigate]);
+
+  const fetchInvestments = async () => {
+    if (!currentUser) return;
+    setLoadingInvestments(true);
+    try {
+      const investmentsRef = ref(rtdb, `investments/${currentUser.uid}`);
+      const snapshot = await get(investmentsRef);
+      if (snapshot.exists()) {
+        const investmentsData = snapshot.val();
+        const investmentsList = Object.entries(investmentsData).map(
+          ([id, inv]) => ({
+            id,
+            ...inv,
+            date: new Date(inv.timestamp),
+            expectedReturn: calculateInvestmentReturn(inv.amount),
+          }),
+        );
+        investmentsList.sort((a, b) => b.timestamp - a.timestamp);
+        setInvestments(investmentsList);
+      } else {
+        setInvestments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching investments:', error);
+    } finally {
+      setLoadingInvestments(false);
+    }
+  };
+
+  const handleInvest = async () => {
+    if (!currentUser) {
+      showToast('Pehle login karo!');
+      navigate('/login');
+      return;
+    }
+    const amount = parseInt(investmentAmount);
+    if (isNaN(amount) || amount < 1000) {
+      showToast('Investment amount kam se kam Rs. 1,000 hona chahiye');
+      return;
+    }
+    if (amount > (userStats?.totalCashback || 0)) {
+      showToast(
+        'Aapke paas itna cashback nahi hai! Pehle shopping karo cashback kamao',
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      const investmentId = push(
+        ref(rtdb, `investments/${currentUser.uid}`),
+      ).key;
+      const returnAmount = calculateInvestmentReturn(amount);
+      await set(ref(rtdb, `investments/${currentUser.uid}/${investmentId}`), {
+        amount,
+        returnAmount,
+        timestamp: Date.now(),
+        status: 'active',
+        expectedReturnDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+      const userRef = ref(rtdb, `users/${currentUser.uid}`);
+      const userSnap = await get(userRef);
+      const currentData = userSnap.exists() ? userSnap.val() : {};
+      const currentCashback = currentData.totalCashback || 0;
+      const currentInvested = currentData.totalInvested || 0;
+      await update(ref(rtdb, `users/${currentUser.uid}`), {
+        totalCashback: currentCashback - amount,
+        totalInvested: currentInvested + amount,
+      });
+      await set(
+        ref(rtdb, `cashbackHistory/${currentUser.uid}/${investmentId}`),
+        {
+          type: 'investment',
+          amount: -amount,
+          description: `Investment of Rs. ${amount.toLocaleString()}`,
+          timestamp: Date.now(),
+        },
+      );
+      await loadUserStats(currentUser.uid);
+      await fetchInvestments();
+      setInvestmentAmount('');
+      showToast(
+        `✅ Rs. ${amount.toLocaleString()} invest kar diya! ${INVESTMENT_RETURN_PERCENTAGE}% return milega 30 din mein`,
+      );
+    } catch (error) {
+      console.error('Error making investment:', error);
+      showToast('Investment karne mein error aa gaya');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalInvested = investments.reduce((sum, inv) => sum + inv.amount, 0);
+  const totalExpectedReturn = investments.reduce(
+    (sum, inv) => sum + inv.expectedReturn,
+    0,
+  );
+
+  if (!currentUser) {
+    return (
+      <div className="page active">
+        <div
+          style={{
+            maxWidth: 600,
+            margin: '0 auto',
+            padding: 40,
+            textAlign: 'center',
+          }}
+        >
+          <div className="big">💰</div>
+          <h2>Pehle Login Karo</h2>
+          <p style={{ marginBottom: 20 }}>
+            Investment karne ke liye login karna zaroori hai.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/login')}
+          >
+            Login Karein
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{
-        height: '0.5px',
-        background: 'var(--color-border-tertiary, #eee)',
-      }}
-    />
+    <div id="investment-page" className="page active">
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Wapas Jao
+        </div>
+        <div className="cart-header">
+          💰 Investment - {INVESTMENT_RETURN_PERCENTAGE}% Return in 30 Days
+        </div>
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+            borderRadius: 24,
+            padding: 30,
+            marginBottom: 30,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 15 }}>📈</div>
+          <h2 style={{ marginBottom: 10, color: '#ff6b35' }}>
+            Invest Your Cashback
+          </h2>
+          <p style={{ color: '#aaa', marginBottom: 25 }}>
+            Apne cashback ko invest karo aur {INVESTMENT_RETURN_PERCENTAGE}%
+            extra return kamao 30 din mein!
+          </p>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 20,
+              marginBottom: 30,
+            }}
+          >
+            <div
+              style={{ background: '#000000', borderRadius: 16, padding: 20 }}
+            >
+              <div style={{ fontSize: 14, color: '#888', marginBottom: 5 }}>
+                Available Cashback
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: '#22a06b' }}>
+                Rs. {(userStats?.totalCashback || 0).toLocaleString()}
+              </div>
+            </div>
+            <div
+              style={{ background: '#000000', borderRadius: 16, padding: 20 }}
+            >
+              <div style={{ fontSize: 14, color: '#888', marginBottom: 5 }}>
+                Total Invested
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: '#ff6b35' }}>
+                Rs. {totalInvested.toLocaleString()}
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              background: '#000000',
+              borderRadius: 16,
+              padding: 20,
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 14,
+                color: '#888',
+                marginBottom: 10,
+                textAlign: 'left',
+              }}
+            >
+              Investment Amount (Min. Rs. 1,000)
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <input
+                type="number"
+                value={investmentAmount}
+                onChange={(e) => setInvestmentAmount(e.target.value)}
+                placeholder="Enter amount"
+                style={{
+                  flex: 1,
+                  background: '#1a1a27',
+                  border: '1px solid #333',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  color: '#fff',
+                  fontSize: 16,
+                }}
+              />
+              <button
+                onClick={handleInvest}
+                disabled={loading || (userStats?.totalCashback || 0) < 1000}
+                style={{
+                  background: '#ff6b35',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '14px 28px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  opacity:
+                    loading || (userStats?.totalCashback || 0) < 1000 ? 0.6 : 1,
+                }}
+              >
+                {loading ? 'Processing...' : 'Invest Now'}
+              </button>
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#888',
+                marginTop: 10,
+                textAlign: 'left',
+              }}
+            >
+              💡 {INVESTMENT_RETURN_PERCENTAGE}% return on investment after 30
+              days
+            </div>
+          </div>
+        </div>
+        <div style={{ background: '#1a1a27', borderRadius: 16, padding: 25 }}>
+          <h3
+            style={{
+              marginBottom: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            📊 Your Investments
+          </h3>
+          {loadingInvestments ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              Loading investments...
+            </div>
+          ) : investments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+              <div style={{ fontSize: 48, marginBottom: 10 }}>📭</div>
+              <p>Abhi tak koi investment nahi ki</p>
+            </div>
+          ) : (
+            investments.map((inv) => (
+              <div
+                key={inv.id}
+                style={{
+                  background: '#000000',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 16 }}>
+                      Rs. {inv.amount.toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      {inv.date.toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: '#22a06b', fontWeight: 600 }}>
+                      Expected Return: Rs. {inv.expectedReturn.toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#888' }}>
+                      +{INVESTMENT_RETURN_PERCENTAGE}% in 30 days
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    marginTop: 10,
+                    height: 6,
+                    background: '#333',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      background: '#ff6b35',
+                      borderRadius: 3,
+                    }}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+          {totalInvested > 0 && (
+            <div
+              style={{
+                marginTop: 20,
+                padding: 15,
+                background: 'rgba(34, 160, 107, 0.1)',
+                borderRadius: 12,
+                border: '1px solid rgba(34, 160, 107, 0.3)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}
+              >
+                <span>💰 Total Expected Return:</span>
+                <strong style={{ color: '#22a06b', fontSize: 18 }}>
+                  Rs. {totalExpectedReturn.toLocaleString()}
+                </strong>
+              </div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                Returns will be added to your cashback after 30 days
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Withdrawal Page Component ────────────────────────────────────────────
+function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('easypaisa');
+  const [easyPaisaNumber, setEasyPaisaNumber] = useState('');
+  const [easyPaisaName, setEasyPaisaName] = useState('');
+  const [jazzCashNumber, setJazzCashNumber] = useState('');
+  const [jazzCashName, setJazzCashName] = useState('');
+  const [selectedBank, setSelectedBank] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankAccountTitle, setBankAccountTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [loadingWithdrawals, setLoadingWithdrawals] = useState(true);
+  const navigate = useNavigate();
+
+  const bankOptions = [
+    'ABL',
+    'HBL',
+    'NBL',
+    'UBL',
+    'MCB',
+    'Bank Alfalah',
+    'Faysal Bank',
+    'Meezan Bank',
+  ];
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    fetchWithdrawals();
+    if (currentUser?.easyPaisaNumber)
+      setEasyPaisaNumber(currentUser.easyPaisaNumber);
+    if (currentUser?.easyPaisaName) setEasyPaisaName(currentUser.easyPaisaName);
+    if (currentUser?.jazzCashNumber)
+      setJazzCashNumber(currentUser.jazzCashNumber);
+    if (currentUser?.jazzCashName) setJazzCashName(currentUser.jazzCashName);
+  }, [currentUser, navigate]);
+
+  const fetchWithdrawals = async () => {
+    if (!currentUser) return;
+    setLoadingWithdrawals(true);
+    try {
+      const withdrawalsRef = ref(rtdb, `withdrawals/${currentUser.uid}`);
+      const snapshot = await get(withdrawalsRef);
+      if (snapshot.exists()) {
+        const withdrawalsData = snapshot.val();
+        const withdrawalsList = Object.entries(withdrawalsData).map(
+          ([id, wd]) => ({ id, ...wd, date: new Date(wd.timestamp) }),
+        );
+        withdrawalsList.sort((a, b) => b.timestamp - a.timestamp);
+        setWithdrawals(withdrawalsList);
+      } else {
+        setWithdrawals([]);
+      }
+    } catch (error) {
+      console.error('Error fetching withdrawals:', error);
+    } finally {
+      setLoadingWithdrawals(false);
+    }
+  };
+
+  const validateWithdrawal = () => {
+    const amount = parseInt(withdrawAmount);
+    if (isNaN(amount) || amount < MIN_WITHDRAWAL_AMOUNT) {
+      showToast(
+        `Withdrawal amount kam se kam Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()} hona chahiye`,
+      );
+      return false;
+    }
+    if (amount > (userStats?.totalCashback || 0)) {
+      showToast('Aapke paas itna cashback nahi hai!');
+      return false;
+    }
+    if (paymentMethod === 'easypaisa') {
+      const normalizedNumber = normalizePakistanPhone(easyPaisaNumber);
+      if (!normalizedNumber) {
+        showToast(
+          'Please enter a valid EasyPaisa number (e.g., +923001234567)',
+        );
+        return false;
+      }
+      if (!easyPaisaName.trim()) {
+        showToast('Please enter the account holder name for EasyPaisa');
+        return false;
+      }
+    } else if (paymentMethod === 'jazzcash') {
+      const normalizedNumber = normalizePakistanPhone(jazzCashNumber);
+      if (!normalizedNumber) {
+        showToast('Please enter a valid JazzCash number (e.g., +923001234567)');
+        return false;
+      }
+      if (!jazzCashName.trim()) {
+        showToast('Please enter the account holder name for JazzCash');
+        return false;
+      }
+    } else if (paymentMethod === 'bank') {
+      if (!selectedBank) {
+        showToast('Please select a bank');
+        return false;
+      }
+      if (!bankAccountNumber.trim() || bankAccountNumber.length < 5) {
+        showToast('Please enter a valid bank account number');
+        return false;
+      }
+      if (!bankAccountTitle.trim()) {
+        showToast('Please enter the account title');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleWithdraw = async () => {
+    if (!currentUser) {
+      showToast('Pehle login karo!');
+      navigate('/login');
+      return;
+    }
+    if (!validateWithdrawal()) return;
+    const amount = parseInt(withdrawAmount);
+    setLoading(true);
+    try {
+      const withdrawalId = push(
+        ref(rtdb, `withdrawals/${currentUser.uid}`),
+      ).key;
+      let withdrawalData = {
+        amount,
+        paymentMethod,
+        timestamp: Date.now(),
+        status: 'pending',
+      };
+      let userUpdateData = {};
+      if (paymentMethod === 'easypaisa') {
+        const normalizedNumber = normalizePakistanPhone(easyPaisaNumber);
+        withdrawalData.easyPaisaNumber = normalizedNumber;
+        withdrawalData.easyPaisaName = easyPaisaName;
+        userUpdateData.easyPaisaNumber = normalizedNumber;
+        userUpdateData.easyPaisaName = easyPaisaName;
+      } else if (paymentMethod === 'jazzcash') {
+        const normalizedNumber = normalizePakistanPhone(jazzCashNumber);
+        withdrawalData.jazzCashNumber = normalizedNumber;
+        withdrawalData.jazzCashName = jazzCashName;
+        userUpdateData.jazzCashNumber = normalizedNumber;
+        userUpdateData.jazzCashName = jazzCashName;
+      } else if (paymentMethod === 'bank') {
+        withdrawalData.bankName = selectedBank;
+        withdrawalData.bankAccountNumber = bankAccountNumber;
+        withdrawalData.bankAccountTitle = bankAccountTitle;
+        userUpdateData.bankName = selectedBank;
+        userUpdateData.bankAccountNumber = bankAccountNumber;
+        userUpdateData.bankAccountTitle = bankAccountTitle;
+      }
+      await set(
+        ref(rtdb, `withdrawals/${currentUser.uid}/${withdrawalId}`),
+        withdrawalData,
+      );
+      const userRef = ref(rtdb, `users/${currentUser.uid}`);
+      const userSnap = await get(userRef);
+      const currentData = userSnap.exists() ? userSnap.val() : {};
+      const currentCashback = currentData.totalCashback || 0;
+      await update(ref(rtdb, `users/${currentUser.uid}`), {
+        totalCashback: currentCashback - amount,
+        ...userUpdateData,
+      });
+      await set(
+        ref(rtdb, `cashbackHistory/${currentUser.uid}/${withdrawalId}`),
+        {
+          type: 'withdrawal',
+          amount: -amount,
+          description: `Withdrawal of Rs. ${amount.toLocaleString()} via ${paymentMethod === 'easypaisa' ? 'EasyPaisa' : paymentMethod === 'jazzcash' ? 'JazzCash' : 'Bank Transfer'}`,
+          timestamp: Date.now(),
+          status: 'pending',
+          paymentMethod,
+        },
+      );
+      await loadUserStats(currentUser.uid);
+      await fetchWithdrawals();
+      setWithdrawAmount('');
+      if (paymentMethod === 'easypaisa') {
+        setEasyPaisaNumber('');
+        setEasyPaisaName('');
+      } else if (paymentMethod === 'jazzcash') {
+        setJazzCashNumber('');
+        setJazzCashName('');
+      } else if (paymentMethod === 'bank') {
+        setSelectedBank('');
+        setBankAccountNumber('');
+        setBankAccountTitle('');
+      }
+      showToast(
+        `✅ Withdrawal request of Rs. ${amount.toLocaleString()} submitted! Amount will be processed within 24-48 hours.`,
+      );
+    } catch (error) {
+      console.error('Error processing withdrawal:', error);
+      showToast('Withdrawal karne mein error aa gaya');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'pending':
+        return {
+          text: 'Pending',
+          color: '#cf7808',
+          bg: 'rgba(207, 120, 8, 0.1)',
+        };
+      case 'approved':
+        return {
+          text: 'Approved',
+          color: '#22a06b',
+          bg: 'rgba(34, 160, 107, 0.1)',
+        };
+      case 'completed':
+        return {
+          text: 'Completed',
+          color: '#22a06b',
+          bg: 'rgba(34, 160, 107, 0.2)',
+        };
+      case 'rejected':
+        return {
+          text: 'Rejected',
+          color: '#c0392b',
+          bg: 'rgba(192, 57, 43, 0.1)',
+        };
+      default:
+        return { text: status, color: '#888', bg: 'rgba(136, 136, 136, 0.1)' };
+    }
+  };
+
+  const getPaymentMethodDisplay = (wd) => {
+    if (wd.paymentMethod === 'easypaisa')
+      return `EasyPaisa: ${wd.easyPaisaNumber} (${wd.easyPaisaName || 'N/A'})`;
+    if (wd.paymentMethod === 'jazzcash')
+      return `JazzCash: ${wd.jazzCashNumber} (${wd.jazzCashName || 'N/A'})`;
+    if (wd.paymentMethod === 'bank')
+      return `${wd.bankName}: ${wd.bankAccountNumber} (${wd.bankAccountTitle || 'N/A'})`;
+    return wd.paymentMethod || 'Unknown';
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="page active">
+        <div
+          style={{
+            maxWidth: 600,
+            margin: '0 auto',
+            padding: 40,
+            textAlign: 'center',
+          }}
+        >
+          <div className="big">🏦</div>
+          <h2>Pehle Login Karo</h2>
+          <p style={{ marginBottom: 20 }}>
+            Withdrawal karne ke liye login karna zaroori hai.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/login')}
+          >
+            Login Karein
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div id="withdrawal-page" className="page active">
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Wapas Jao
+        </div>
+        <div className="cart-header">🏦 Withdraw Cashback</div>
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+            borderRadius: 24,
+            padding: 30,
+            marginBottom: 30,
+          }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: 25 }}>
+            <div style={{ fontSize: 48, marginBottom: 10 }}>💸</div>
+            <h2 style={{ marginBottom: 5, color: '#ff6b35' }}>
+              Withdraw Your Cashback
+            </h2>
+            <p style={{ color: '#aaa' }}>
+              Select your preferred withdrawal method
+            </p>
+          </div>
+          <div
+            style={{
+              background: '#000000',
+              borderRadius: 16,
+              padding: 20,
+              marginBottom: 20,
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 14, color: '#888', marginBottom: 5 }}>
+              Available Balance
+            </div>
+            <div style={{ fontSize: 42, fontWeight: 700, color: '#22a06b' }}>
+              Rs. {(userStats?.totalCashback || 0).toLocaleString()}
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
+              Minimum withdrawal: Rs. {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
+            </div>
+          </div>
+          <div style={{ marginBottom: 25 }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: 10,
+                fontSize: 14,
+                color: '#aaa',
+              }}
+            >
+              Select Withdrawal Method
+            </label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 10,
+              }}
+            >
+              {[
+                { id: 'easypaisa', label: '📱 EasyPaisa', color: '#22a06b' },
+                { id: 'jazzcash', label: '💳 JazzCash', color: '#ff6b35' },
+                { id: 'bank', label: '🏦 Bank Transfer', color: '#3b82f6' },
+              ].map((method) => (
+                <button
+                  key={method.id}
+                  onClick={() => setPaymentMethod(method.id)}
+                  style={{
+                    background:
+                      paymentMethod === method.id ? method.color : '#1a1a27',
+                    border:
+                      paymentMethod === method.id ? 'none' : '1px solid #333',
+                    borderRadius: 12,
+                    padding: '12px',
+                    color: paymentMethod === method.id ? '#fff' : '#aaa',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {method.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {paymentMethod === 'easypaisa' && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  📱 EasyPaisa Number
+                </label>
+                <input
+                  type="tel"
+                  value={easyPaisaNumber}
+                  onChange={(e) => setEasyPaisaNumber(e.target.value)}
+                  placeholder="+923001234567"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  👤 Account Holder Name
+                </label>
+                <input
+                  type="text"
+                  value={easyPaisaName}
+                  onChange={(e) => setEasyPaisaName(e.target.value)}
+                  placeholder="As per CNIC"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          {paymentMethod === 'jazzcash' && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  💳 JazzCash Number
+                </label>
+                <input
+                  type="tel"
+                  value={jazzCashNumber}
+                  onChange={(e) => setJazzCashNumber(e.target.value)}
+                  placeholder="+923001234567"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  👤 Account Holder Name
+                </label>
+                <input
+                  type="text"
+                  value={jazzCashName}
+                  onChange={(e) => setJazzCashName(e.target.value)}
+                  placeholder="As per CNIC"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          {paymentMethod === 'bank' && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  🏦 Select Bank
+                </label>
+                <select
+                  value={selectedBank}
+                  onChange={(e) => setSelectedBank(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                >
+                  <option value="">-- Select Bank --</option>
+                  {bankOptions.map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  🔢 Account Number
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumber}
+                  onChange={(e) => setBankAccountNumber(e.target.value)}
+                  placeholder="Enter bank account number"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 15 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: 8,
+                    fontSize: 14,
+                    color: '#aaa',
+                  }}
+                >
+                  📝 Account Title
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountTitle}
+                  onChange={(e) => setBankAccountTitle(e.target.value)}
+                  placeholder="As per bank statement"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    color: '#fff',
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          <div style={{ marginBottom: 20 }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: 8,
+                fontSize: 14,
+                color: '#aaa',
+              }}
+            >
+              💰 Withdrawal Amount
+            </label>
+            <input
+              type="number"
+              value={withdrawAmount}
+              onChange={(e) => setWithdrawAmount(e.target.value)}
+              placeholder={`Min. Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`}
+              style={{
+                width: '100%',
+                background: '#1a1a27',
+                border: '1px solid #333',
+                borderRadius: 12,
+                padding: '14px 16px',
+                color: '#fff',
+                fontSize: 16,
+              }}
+            />
+          </div>
+          <button
+            onClick={handleWithdraw}
+            disabled={
+              loading || (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
+            }
+            style={{
+              width: '100%',
+              background: '#ff6b35',
+              border: 'none',
+              borderRadius: 12,
+              padding: '16px',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: 16,
+              opacity:
+                loading ||
+                (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
+                  ? 0.6
+                  : 1,
+            }}
+          >
+            {loading ? 'Processing...' : 'Withdraw Now'}
+          </button>
+        </div>
+        <div style={{ background: '#1a1a27', borderRadius: 16, padding: 25 }}>
+          <h3
+            style={{
+              marginBottom: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            📋 Withdrawal History
+          </h3>
+          {loadingWithdrawals ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              Loading history...
+            </div>
+          ) : withdrawals.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+              <div style={{ fontSize: 48, marginBottom: 10 }}>📭</div>
+              <p>Abhi tak koi withdrawal request nahi ki</p>
+            </div>
+          ) : (
+            withdrawals.map((wd) => {
+              const statusBadge = getStatusBadge(wd.status);
+              return (
+                <div
+                  key={wd.id}
+                  style={{
+                    background: '#000000',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 10,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 16 }}>
+                        Rs. {wd.amount.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#888' }}>
+                        {wd.date.toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div>
+                      <span
+                        style={{
+                          background: statusBadge.bg,
+                          color: statusBadge.color,
+                          padding: '4px 12px',
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {statusBadge.text}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#aaa', marginTop: 8 }}>
+                    📱 {getPaymentMethodDisplay(wd)}
+                  </div>
+                  {wd.status === 'pending' && (
+                    <div
+                      style={{ fontSize: 11, color: '#cf7808', marginTop: 8 }}
+                    >
+                      ⏳ Processing - Will be sent within 24-48 hours
+                    </div>
+                  )}
+                  {wd.status === 'completed' && (
+                    <div
+                      style={{ fontSize: 11, color: '#22a06b', marginTop: 8 }}
+                    >
+                      ✅ Amount sent to your account
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div
+          style={{
+            marginTop: 20,
+            padding: 15,
+            background: 'rgba(255, 107, 53, 0.1)',
+            borderRadius: 12,
+            border: '1px solid rgba(255, 107, 53, 0.3)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 8,
+            }}
+          >
+            <span>💡</span>
+            <strong>Withdrawal Information:</strong>
+          </div>
+          <ul
+            style={{ margin: 0, paddingLeft: 20, color: '#aaa', fontSize: 13 }}
+          >
+            <li>
+              Minimum withdrawal amount: Rs.{' '}
+              {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
+            </li>
+            <li>Withdrawals are processed within 24-48 hours</li>
+            <li>Make sure your account details are correct</li>
+            <li>You can withdraw via EasyPaisa, JazzCash, or Bank Transfer</li>
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -440,7 +1601,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
   const [copySuccess, setCopySuccess] = useState(false);
 
   const shareOnWhatsApp = () => {
-    const message = `Assalam o Alaikum! 🎉\n\nJoin CashBack Shop and earn ${BASE_CASHBACK_PERCENTAGE}% cashback on every purchase! Use my referral link to get started:\n\n${referLink}\n\nAapko bhi cashback milega aur mujhe bhi! 💰`;
+    const message = `Assalam o Alaikum! 🎉\n\nJoin CashBack Shop and earn ${BASE_CASHBACK_PERCENTAGE}% cashback on every purchase! Also invest your cashback to earn ${INVESTMENT_RETURN_PERCENTAGE}% extra returns! Use my referral link to get started:\n\n${referLink}\n\nAapko bhi cashback milega aur mujhe bhi! 💰`;
     window.open(
       `https://wa.me/?text=${encodeURIComponent(message)}`,
       '_blank',
@@ -500,11 +1661,9 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
         <div className="back-btn" onClick={() => navigate('/')}>
           ← Wapas Jao
         </div>
-
         <div className="cart-header" style={{ marginBottom: 30 }}>
           🔗 Dost Ko Refer Karo — Rs. {REFER_BONUS.toLocaleString()} Kamao!
         </div>
-
         <div
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
@@ -523,7 +1682,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             Jab aapka dost register karega aur pehla order karega, aapko{' '}
             {REFER_BONUS} rupees extra cashback milega!
           </p>
-
           <div
             style={{
               background: '#000000',
@@ -582,7 +1740,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
               </button>
             </div>
           </div>
-
           <div
             style={{
               display: 'flex',
@@ -627,7 +1784,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             </button>
           </div>
         </div>
-
         <div
           style={{
             background: '#1a1a27',
@@ -707,32 +1863,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             </div>
           </div>
         </div>
-
-        <div
-          style={{
-            background: 'rgba(34, 160, 107, 0.1)',
-            borderRadius: 16,
-            padding: 20,
-            border: '1px solid rgba(34, 160, 107, 0.3)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              marginBottom: 10,
-            }}
-          >
-            <span style={{ fontSize: 24 }}>💡</span>
-            <strong style={{ color: '#22a06b' }}>Pro Tip:</strong>
-          </div>
-          <p style={{ fontSize: 14, color: '#aaa', margin: 0 }}>
-            Jitne zyada dosto ko refer karoge, utna zyada cashback kamao! Koi
-            limit nahi hai. Har successful referral pe Rs.{' '}
-            {REFER_BONUS.toLocaleString()} bonus milega!
-          </p>
-        </div>
       </div>
     </div>
   );
@@ -749,7 +1879,6 @@ function OrdersPage({ currentUser }) {
       navigate('/login');
       return;
     }
-
     const fetchOrders = async () => {
       try {
         const ordersRef = ref(rtdb, `orders/${currentUser.uid}`);
@@ -770,7 +1899,6 @@ function OrdersPage({ currentUser }) {
         setLoading(false);
       }
     };
-
     fetchOrders();
   }, [currentUser, navigate]);
 
@@ -789,7 +1917,6 @@ function OrdersPage({ currentUser }) {
           ← Wapas Jao
         </div>
         <div className="cart-header">📦 Meri Orders</div>
-
         {orders.length === 0 ? (
           <div className="cart-empty">
             <div className="big">📦</div>
@@ -828,7 +1955,6 @@ function OrdersPage({ currentUser }) {
                   </div>
                 </div>
               </div>
-
               {order.items.map((item, idx) => (
                 <div
                   key={idx}
@@ -858,7 +1984,6 @@ function OrdersPage({ currentUser }) {
                   </div>
                 </div>
               ))}
-
               <div
                 style={{
                   borderTop: '1px solid #333',
@@ -907,7 +2032,6 @@ function CashbackHistoryPage({ currentUser }) {
       navigate('/login');
       return;
     }
-
     const fetchCashbackHistory = async () => {
       try {
         const cashbackRef = ref(rtdb, `cashbackHistory/${currentUser.uid}`);
@@ -930,7 +2054,6 @@ function CashbackHistoryPage({ currentUser }) {
         setLoading(false);
       }
     };
-
     fetchCashbackHistory();
   }, [currentUser, navigate]);
 
@@ -949,7 +2072,6 @@ function CashbackHistoryPage({ currentUser }) {
           ← Wapas Jao
         </div>
         <div className="cart-header">💰 Cashback History</div>
-
         {cashbackEntries.length === 0 ? (
           <div className="cart-empty">
             <div className="big">💰</div>
@@ -970,23 +2092,40 @@ function CashbackHistoryPage({ currentUser }) {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10,
               }}
             >
               <div>
                 <div style={{ fontWeight: 500 }}>
-                  {entry.type === 'order' ? 'Order Cashback' : 'Referral Bonus'}
+                  {entry.type === 'order'
+                    ? 'Order Cashback'
+                    : entry.type === 'referral'
+                      ? 'Referral Bonus'
+                      : entry.type === 'investment'
+                        ? 'Investment'
+                        : entry.type === 'withdrawal'
+                          ? 'Withdrawal'
+                          : 'Other'}
                 </div>
                 <div style={{ fontSize: 12, color: '#888' }}>
                   {entry.date.toLocaleDateString()}
                 </div>
-                {entry.orderId && (
+                {entry.description && (
                   <div style={{ fontSize: 11, color: '#888' }}>
-                    Order: {entry.orderId.slice(0, 8)}
+                    {entry.description}
                   </div>
                 )}
               </div>
-              <div style={{ fontSize: 18, fontWeight: 600, color: '#22a06b' }}>
-                +Rs.{entry.amount.toLocaleString()}
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: entry.amount > 0 ? '#22a06b' : '#c0392b',
+                }}
+              >
+                {entry.amount > 0 ? '+' : ''}
+                {entry.amount.toLocaleString()}
               </div>
             </div>
           ))
@@ -996,50 +2135,180 @@ function CashbackHistoryPage({ currentUser }) {
   );
 }
 
+// ─── Live Balance Marquee Component ─────────────────────────────────────────
+function LiveBalanceMarquee({ userStats, loadingStats, currentUser }) {
+  const withdrawalMessages = [
+    { user: '+92331****5679', amount: 500 },
+    { user: '+92341****5099', amount: 300 },
+    { user: '+92343****5649', amount: 200 },
+    { user: '+92316****4523', amount: 2300 },
+    { user: '+92317****7891', amount: 1300 },
+    { user: '+92322****3344', amount: 750 },
+    { user: '+92345****6789', amount: 1200 },
+    { user: '+92312****3456', amount: 4500 },
+    { user: '+92333****7890', amount: 800 },
+    { user: '+92344****1122', amount: 600 },
+  ];
+  const scrollingItems = [...withdrawalMessages, ...withdrawalMessages];
+
+  return (
+    <div
+      style={{
+        background: 'linear-gradient(90deg, #1a1a27, #0f0f1a, #1a1a27)',
+        padding: '12px 20px',
+        borderRadius: 40,
+        margin: '0 20px 20px 20px',
+        textAlign: 'center',
+        border: '1px solid rgba(255,107,53,0.3)',
+        boxShadow: '0 0 10px rgba(255,107,53,0.2)',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        position: 'relative',
+      }}
+    >
+      <div
+        className="marquee-track"
+        style={{
+          display: 'inline-flex',
+          gap: '40px',
+          fontSize: '14px',
+          fontWeight: 500,
+          animation: 'marquee 25s linear infinite',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {scrollingItems.map((item, idx) => (
+          <span key={idx} style={{ color: '#ffffff' }}>
+            👤 {item.user} withdrew Rs {item.amount.toLocaleString()}
+          </span>
+        ))}
+      </div>
+      <style>{`@keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } } .marquee-track:hover { animation-play-state: paused; } @media (max-width: 768px) { .marquee-track { animation-duration: 35s; gap: 25px; } }`}</style>
+    </div>
+  );
+}
+
+// ─── Info Cards Component ─────────────────────────────────────────
+function InfoCards({ onNavigate }) {
+  const cards = [
+    {
+      icon: '🏦',
+      title: 'Withdraw Cashback',
+      description: 'Withdraw your cashback directly',
+      color: '#ff6b35',
+      link: '/withdraw',
+    },
+    {
+      icon: '📖',
+      title: 'About Us',
+      description: 'Learn more about Cashback Store',
+      color: '#22a06b',
+      link: '#',
+    },
+    {
+      icon: '👥',
+      title: 'Our Team',
+      description: 'Meet the team behind Cashback Store',
+      color: '#3b82f6',
+      link: '#',
+    },
+    {
+      icon: '🛡️',
+      title: 'Support',
+      description: '24/7 customer support',
+      color: '#a855f7',
+      link: '#',
+    },
+  ];
+  const handleCardClick = (card) => {
+    if (card.link === '/withdraw') onNavigate(card.link);
+    else alert(`${card.title} - Coming Soon!`);
+  };
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '16px',
+        margin: '30px 20px',
+        padding: '0',
+      }}
+    >
+      {cards.map((card, idx) => (
+        <div
+          key={idx}
+          onClick={() => handleCardClick(card)}
+          style={{
+            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+            borderRadius: 20,
+            padding: '20px 15px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            border: `1px solid ${card.color}30`,
+            boxShadow: `0 4px 15px ${card.color}10`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-5px)';
+            e.currentTarget.style.boxShadow = `0 8px 25px ${card.color}20`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = `0 4px 15px ${card.color}10`;
+          }}
+        >
+          <div style={{ fontSize: '42px', marginBottom: '10px' }}>
+            {card.icon}
+          </div>
+          <div
+            style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: card.color,
+              marginBottom: '8px',
+            }}
+          >
+            {card.title}
+          </div>
+          <div style={{ fontSize: '12px', color: '#aaa', lineHeight: 1.4 }}>
+            {card.description}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main App Shell ────────────────────────────────────────────────────────────
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-
   const [currentUser, setCurrentUser] = useState(null);
-  const [cart, setCart] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('cbCart') || '[]');
-    } catch {
-      return [];
-    }
-  });
-
+  const [lastOrderItems, setLastOrderItems] = useState([]);
+  const [lastOrderAmount, setLastOrderAmount] = useState(0);
   const [userStats, setUserStats] = useState({
     totalOrders: 0,
     totalCashback: 0,
     referBonus: 0,
+    totalInvested: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
-
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
-  const showToast = (msg) => {
-    setToast(msg);
-    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setToast(''), 3200);
-  };
-
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderCashbackTotal, setOrderCashbackTotal] = useState(0);
 
-  const cartCount = useMemo(() => cart.reduce((s, i) => s + i.qty, 0), [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('cbCart', JSON.stringify(cart));
-  }, [cart]);
+  const showToast = (msg) => {
+    setToast(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 3200);
+  };
 
   useEffect(() => {
     const sp = new URLSearchParams(location.search);
     const r = sp.get('ref');
     if (r) localStorage.setItem('cbRef', r);
   }, [location.search]);
-
   useEffect(() => {
     const uid = localStorage.getItem('cbUid');
     const phone = localStorage.getItem('cbPhone');
@@ -1057,9 +2326,8 @@ function AppShell() {
     try {
       const ordersRef = ref(rtdb, `orders/${uid}`);
       const ordersSnap = await get(ordersRef);
-      let totalOrders = 0;
-      let totalCashback = 0;
-
+      let totalOrders = 0,
+        totalCashback = 0;
       if (ordersSnap.exists()) {
         const orders = ordersSnap.val();
         totalOrders = Object.keys(orders).length;
@@ -1067,15 +2335,16 @@ function AppShell() {
           totalCashback += order.cashbackEarned || 0;
         });
       }
-
       const userRef = ref(rtdb, `users/${uid}`);
       const userSnap = await get(userRef);
-      let referBonus = 0;
+      let referBonus = 0,
+        totalInvested = 0;
       if (userSnap.exists()) {
         referBonus = userSnap.val().referBonus || 0;
+        totalInvested = userSnap.val().totalInvested || 0;
       }
-
-      setUserStats({ totalOrders, totalCashback, referBonus });
+      totalCashback += referBonus;
+      setUserStats({ totalOrders, totalCashback, referBonus, totalInvested });
     } catch (error) {
       console.error('Error loading user stats:', error);
     } finally {
@@ -1090,60 +2359,11 @@ function AppShell() {
     showToast('Logout ho gaye!');
     navigate('/');
   };
-
-  const addToCart = (id) => {
-    const p = PRODUCTS.find((x) => x.id === id);
-    if (!p) return;
-    setCart((prev) => {
-      const idx = prev.findIndex((x) => x.id === id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
-        return next;
-      }
-      return [
-        ...prev,
-        {
-          id: p.id,
-          name: p.name,
-          img: p.img,
-          price: p.price,
-          cashback: p.cashback,
-          qty: 1,
-        },
-      ];
-    });
-    showToast(`✅ "${p.name}" cart mein!`);
-  };
-
-  const removeFromCart = (id) =>
-    setCart((prev) => prev.filter((x) => x.id !== id));
-
-  const changeQty = (id, delta) => {
-    setCart((prev) => {
-      const it = prev.find((x) => x.id === id);
-      if (!it) return prev;
-      const nextQty = it.qty + delta;
-      if (nextQty <= 0) return prev.filter((x) => x.id !== id);
-      return prev.map((x) => (x.id === id ? { ...x, qty: nextQty } : x));
-    });
-  };
-
-  const subtotal = useMemo(
-    () => cart.reduce((s, i) => s + i.price * i.qty, 0),
-    [cart],
-  );
-  const cashbackTotal = useMemo(
-    () => cart.reduce((s, i) => s + i.cashback * i.qty, 0),
-    [cart],
-  );
-
   const referLink = useMemo(() => {
-    if (!currentUser?.phone) return 'Login karo link ke liye...';
+    if (!currentUser?.phone) return 'Login karo...';
     const digits = phoneDigitsForQuery(currentUser.phone);
     return `${window.location.origin}/?ref=${encodeURIComponent(digits)}`;
   }, [currentUser]);
-
   const copyText = async (text, okMsg) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -1152,9 +2372,7 @@ function AppShell() {
       showToast('Copy nahi ho saka');
     }
   };
-
   const copyEP = () => copyText(EP_NUM, `📋 ${EP_DISPLAY} copy ho gaya!`);
-
   const copyReferLink = () => {
     if (!currentUser) {
       showToast('Pehle login karo!');
@@ -1164,50 +2382,49 @@ function AppShell() {
     copyText(referLink, '🔗 Refer link copy ho gaya!');
   };
 
-  const placeOrder = async () => {
+  const placeOrder = async (product, paymentMethod, paymentDetails) => {
     if (!currentUser) {
       showToast('Pehle login karo!');
       navigate('/login');
       return;
     }
-    if (cart.length === 0) {
-      showToast('Cart khali hai!');
+    if (!product) {
+      showToast('Product select karo');
       return;
     }
-
+    const orderItems = [{ ...product, qty: 1 }];
+    const subtotal = product.price;
+    const cashbackTotal = product.cashback;
     try {
       const orderId = push(ref(rtdb, `orders/${currentUser.uid}`)).key;
-      const orderData = {
+      await set(ref(rtdb, `orders/${currentUser.uid}/${orderId}`), {
         id: orderId,
         userId: currentUser.uid,
-        items: cart,
+        items: orderItems,
         totalAmount: subtotal,
         cashbackEarned: cashbackTotal,
+        paymentMethod,
+        paymentDetails,
         timestamp: Date.now(),
         status: 'pending',
-      };
-
-      await set(ref(rtdb, `orders/${currentUser.uid}/${orderId}`), orderData);
-
+      });
       await set(ref(rtdb, `cashbackHistory/${currentUser.uid}/${orderId}`), {
         type: 'order',
         amount: cashbackTotal,
-        orderId: orderId,
+        orderId,
+        description: `Cashback from order worth Rs. ${subtotal.toLocaleString()}`,
         timestamp: Date.now(),
       });
-
       const userRef = ref(rtdb, `users/${currentUser.uid}`);
       const userSnap = await get(userRef);
       const currentStats = userSnap.exists() ? userSnap.val() : {};
       const currentCashback = currentStats.totalCashback || 0;
       const currentOrders = currentStats.totalOrders || 0;
-
       await update(ref(rtdb, `users/${currentUser.uid}`), {
         totalCashback: currentCashback + cashbackTotal,
         totalOrders: currentOrders + 1,
         lastOrderDate: Date.now(),
       });
-
       const referrerPhone = localStorage.getItem('cbRef');
       if (referrerPhone) {
         const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
@@ -1221,22 +2438,25 @@ function AppShell() {
           const currentReferBonus = referrerSnap.exists()
             ? referrerSnap.val().referBonus || 0
             : 0;
-
+          const referrerCashback = referrerSnap.exists()
+            ? referrerSnap.val().totalCashback || 0
+            : 0;
           await update(ref(rtdb, `users/${referrerUid}`), {
             referBonus: currentReferBonus + REFER_BONUS,
+            totalCashback: referrerCashback + REFER_BONUS,
           });
-
           await set(ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`), {
             type: 'referral',
             amount: REFER_BONUS,
             referredUser: currentUser.uid,
+            description: `Referral bonus for referring user ${currentUser.phone}`,
             timestamp: Date.now(),
           });
         }
       }
-
       await loadUserStats(currentUser.uid);
-
+      setLastOrderItems(orderItems);
+      setLastOrderAmount(subtotal);
       setOrderCashbackTotal(cashbackTotal);
       setOrderModalOpen(true);
     } catch (error) {
@@ -1247,18 +2467,16 @@ function AppShell() {
 
   const closeOrderModal = () => {
     setOrderModalOpen(false);
-    setCart([]);
     navigate('/');
   };
-
   const shareWhatsApp = () => {
-    const items = cart
+    const items = lastOrderItems
       .map(
         (i) =>
           `• ${i.name} ×${i.qty} = Rs.${(i.price * i.qty).toLocaleString()}`,
       )
       .join('\n');
-    const msg = `Assalam o Alaikum!\n\nMera order confirm karna hai:\n\n${items}\n\nTotal: Rs. ${subtotal.toLocaleString()}\n\nPayment: EasyPaisa ${EP_DISPLAY}\n\nCashback: ${BASE_CASHBACK_PERCENTAGE}% (Rs. ${cashbackTotal.toLocaleString()})`;
+    const msg = `Assalam o Alaikum!\n\nMera order confirm karna hai:\n\n${items}\n\nTotal: Rs. ${lastOrderAmount.toLocaleString()}\n\nPayment: EasyPaisa ${EP_DISPLAY}\n\nCashback: ${BASE_CASHBACK_PERCENTAGE}% (Rs. ${orderCashbackTotal.toLocaleString()})\n\nInvestment: Earn ${INVESTMENT_RETURN_PERCENTAGE}% on cashback!`;
     const r = localStorage.getItem('cbRef');
     const extra = r ? `\nReferral: ${r}` : '';
     window.open(
@@ -1273,39 +2491,35 @@ function AppShell() {
     <>
       <nav>
         <div className="logo" onClick={() => navigate('/')}>
-          Cash<span>Back</span> Shop
+          Cash<span>back</span> Store
         </div>
         <div className="nav-right">
-          <button
-            className="cart-btn"
-            onClick={() => navigate('/cart')}
-            aria-label="Cart"
-          >
-            🛒 Cart
-            <span className={`cart-count ${cartCount > 0 ? 'show' : ''}`}>
-              {cartCount}
-            </span>
-          </button>
-
-          {currentUser ? (
-            <ProfileDropdown
-              currentUser={currentUser}
-              onLogout={logout}
-              onNavigate={navigate}
-              userStats={userStats}
-              loadingStats={loadingStats}
-            />
-          ) : (
-            <button
-              className="btn btn-primary"
-              onClick={() => navigate('/login')}
-            >
-              Login
-            </button>
-          )}
+          <div>
+            {currentUser ? (
+              <ProfileDropdown
+                currentUser={currentUser}
+                onLogout={logout}
+                onNavigate={navigate}
+                userStats={userStats}
+                loadingStats={loadingStats}
+              />
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={() => navigate('/login')}
+              >
+                Login
+              </button>
+            )}
+          </div>
         </div>
       </nav>
-
+      <LiveBalanceMarquee
+        userStats={userStats}
+        loadingStats={loadingStats}
+        currentUser={currentUser}
+      />
+      <InfoCards onNavigate={navigate} />
       <div
         id="toast"
         className={toast ? 'show' : ''}
@@ -1314,25 +2528,13 @@ function AppShell() {
       >
         {toast}
       </div>
-
       <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/product/:id" element={<DetailPage />} />
         <Route
-          path="/"
-          element={<HomePage cart={cart} onAddToCart={addToCart} />}
-        />
-        <Route
-          path="/product/:id"
-          element={<DetailPage cart={cart} onAddToCart={addToCart} />}
-        />
-        <Route
-          path="/cart"
+          path="/payment/:id"
           element={
-            <CartPage
-              cart={cart}
-              onRemove={removeFromCart}
-              onChangeQty={changeQty}
-              subtotal={subtotal}
-              cashbackTotal={cashbackTotal}
+            <PaymentPage
               epDisplay={EP_DISPLAY}
               referLink={referLink}
               onCopyEP={copyEP}
@@ -1348,12 +2550,42 @@ function AppShell() {
             <LoginPage
               currentUser={currentUser}
               onLoginComplete={() => navigate('/')}
+              setCurrentUser={setCurrentUser}
+              loadUserStats={loadUserStats}
             />
           }
         />
         <Route
           path="/signup"
-          element={<SignupPage onSignupComplete={() => navigate('/')} />}
+          element={
+            <SignupPage
+              onSignupComplete={() => navigate('/')}
+              setCurrentUser={setCurrentUser}
+              loadUserStats={loadUserStats}
+            />
+          }
+        />
+        <Route
+          path="/investment"
+          element={
+            <InvestmentPage
+              currentUser={currentUser}
+              userStats={userStats}
+              loadUserStats={loadUserStats}
+              showToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/withdraw"
+          element={
+            <WithdrawalPage
+              currentUser={currentUser}
+              userStats={userStats}
+              loadUserStats={loadUserStats}
+              showToast={showToast}
+            />
+          }
         />
         <Route
           path="/orders"
@@ -1375,13 +2607,12 @@ function AppShell() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-
       <div
         className={`modal-overlay ${orderModalOpen ? 'open' : ''}`}
         role="dialog"
         aria-modal="true"
       >
-        {orderModalOpen ? (
+        {orderModalOpen && (
           <div className="modal">
             <div className="modal-icon">🎉</div>
             <h2>Order Confirm!</h2>
@@ -1407,6 +2638,10 @@ function AppShell() {
                 Rs. {REFER_BONUS.toLocaleString()}
               </strong>{' '}
               (jab dost order kare).
+              <br />
+              <br />
+              💡 Tip: Invest your cashback to earn{' '}
+              {INVESTMENT_RETURN_PERCENTAGE}% extra returns!
             </p>
             <div className="modal-btns">
               <button className="btn btn-primary" onClick={closeOrderModal}>
@@ -1417,18 +2652,18 @@ function AppShell() {
               </button>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
-
       <footer>
-        <span>© {new Date().getFullYear()} CashBack Shop Pakistan</span>
+        <span>© {new Date().getFullYear()} Cashback Store Pakistan</span>
         <span>💚 {BASE_CASHBACK_PERCENTAGE}% Cashback on Every Purchase!</span>
+        <span>📈 {INVESTMENT_RETURN_PERCENTAGE}% Returns on Investment</span>
       </footer>
     </>
   );
 
   // ── Page components ────────────────────────────────────────────
-  function HomePage({ cart, onAddToCart }) {
+  function HomePage() {
     const [filter, setFilter] = useState('all');
     const list = useMemo(
       () =>
@@ -1438,25 +2673,92 @@ function AppShell() {
       [filter],
     );
     const navigate = useNavigate();
-
+    const userPhone = currentUser?.phone || 'Not Logged In';
+    const maskedPhone =
+      userPhone !== 'Not Logged In'
+        ? userPhone.replace(/(\+92\d{3})\d{6}/, '$1******')
+        : 'Not Logged In';
+    const totalBalance = (userStats?.totalCashback || 0).toLocaleString();
     return (
       <div className="page active">
         <section className="hero">
           <div className="cb-banner">
-            <span className="dot"></span> Buy & Earn —{' '}
-            {BASE_CASHBACK_PERCENTAGE}% Cash Back on Every Order!
+            <span className="dot"></span> Cashback Store official portal
+          </div>
+          <div
+            style={{
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: 16,
+              padding: '12px 20px',
+              margin: '15px 0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '15px',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '15px', color: '#0d0c0c' }}>
+                User ID:
+              </span>
+              <span
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  marginLeft: '8px',
+                  color: '#ff6b35',
+                }}
+              >
+                {maskedPhone}
+              </span>
+            </div>
+            <div>
+              <span style={{ fontSize: '15px', color: '#000000' }}>
+                Total Balance:
+              </span>
+              <span
+                style={{
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  marginLeft: '8px',
+                  color: '#22a06b',
+                }}
+              >
+                Rs. {totalBalance}
+              </span>
+            </div>
           </div>
           <h1>
-            Shop Smart.
+            Smart Products.
             <br />
-            <em>Earn Every Time.</em>
+            <em>Direct Payment.</em>
           </h1>
           <p>
-            Top products khareedo, EasyPaisa se pay karo, aur{' '}
-            {BASE_CASHBACK_PERCENTAGE}% instant cashback kamao!
+            Premium product collection, fast checkout, secure login/signup, and
+            rewards on every order. Keep shopping and grow your cashback balance
+            with every purchase.
           </p>
         </section>
-
+        <section className="home-highlights">
+          <div className="highlight-card">
+            <div className="h-title">Secure Account</div>
+            <p>Phone-based signup, login, and logout already active.</p>
+          </div>
+          <div className="highlight-card">
+            <div className="h-title">Instant Rewards</div>
+            <p>
+              {BASE_CASHBACK_PERCENTAGE}% cashback credited after purchase flow.
+            </p>
+          </div>
+          <div className="highlight-card">
+            <div className="h-title">Growth Potential</div>
+            <p>
+              Reinvest cashback and target {INVESTMENT_RETURN_PERCENTAGE}%
+              return opportunities.
+            </p>
+          </div>
+        </section>
         <div className="filter-tabs">
           {['all', 'fans', 'gym', 'kitchen', 'electronics'].map((cat) => (
             <button
@@ -1470,68 +2772,62 @@ function AppShell() {
             </button>
           ))}
         </div>
-
         <div className="products-grid">
-          {list.map((p) => {
-            const it = cart.find((x) => x.id === p.id);
-            return (
-              <div key={p.id} className="product-card">
-                <div onClick={() => navigate(`/product/${p.id}`)}>
-                  <div className="card-img">
-                    <img
-                      src={p.img}
-                      alt={p.name}
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = FALLBACK;
-                      }}
-                    />
-                    <div className="img-overlay"></div>
-                  </div>
-                  <div className="card-body">
-                    <div className="card-cat">{p.category.toUpperCase()}</div>
-                    <div className="card-name">{p.name}</div>
-                    <div className="card-price">
-                      Rs. {p.price.toLocaleString()} <span>PKR</span>
-                    </div>
-                    <div className="card-footer">
-                      <span className="cb-tag">
-                        💰 {BASE_CASHBACK_PERCENTAGE}% Cashback (Rs.
-                        {p.cashback.toLocaleString()})
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ padding: '0 14px 14px' }}>
-                  <button
-                    className={`add-cart-btn ${it ? 'added' : ''}`}
-                    style={{ width: '100%', padding: 9 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddToCart(p.id);
+          {list.map((p) => (
+            <div key={p.id} className="product-card">
+              <div onClick={() => navigate(`/product/${p.id}`)}>
+                <div className="card-img">
+                  <img
+                    src={p.img}
+                    alt={p.name}
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = FALLBACK;
                     }}
-                  >
-                    {it ? `✅ Cart Mein (${it.qty})` : '🛒 Add to Cart'}
-                  </button>
+                  />
+                  <div className="img-overlay"></div>
+                </div>
+                <div className="card-body">
+                  <div className="card-cat">{p.category.toUpperCase()}</div>
+                  <div className="card-name">{p.name}</div>
+                  <div className="card-price">
+                    Rs. {p.price.toLocaleString()} <span>PKR</span>
+                  </div>
+                  <div className="card-footer">
+                    <span className="cb-tag">
+                      💰 {BASE_CASHBACK_PERCENTAGE}% Cashback (Rs.
+                      {p.cashback.toLocaleString()})
+                    </span>
+                  </div>
                 </div>
               </div>
-            );
-          })}
+              <div style={{ padding: '0 14px 14px' }}>
+                <button
+                  className="add-cart-btn"
+                  style={{ width: '100%', padding: 9 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/payment/${p.id}`);
+                  }}
+                >
+                  Buy Now
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
-  function DetailPage({ cart, onAddToCart }) {
+  function DetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const p = useMemo(
       () => PRODUCTS.find((x) => String(x.id) === String(id)) || null,
       [id],
     );
-    const it = p ? cart.find((x) => x.id === p.id) : null;
-
     if (!p)
       return (
         <div className="page active">
@@ -1557,7 +2853,8 @@ function AppShell() {
           </div>
         </div>
       );
-
+    const { dailyProfit, totalProfit, cycleDays, returnPercentage } =
+      p.profitDetails;
     return (
       <div id="detail-page" className="page active">
         <div style={{ padding: '0' }}>
@@ -1590,13 +2887,77 @@ function AppShell() {
                 {p.cashback.toLocaleString()})
               </div>
               <div className="det-desc">{p.desc}</div>
-              <button
-                className={`detail-add-btn ${it ? 'added' : ''}`}
-                onClick={() => onAddToCart(p.id)}
+              <div
+                style={{
+                  background: '#1a1a27',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginTop: 20,
+                }}
               >
-                {it
-                  ? `✅ Cart Mein (${it.qty}) — Aur Add Karo`
-                  : '🛒 Add to Cart'}
+                <h3 style={{ marginBottom: 15, fontSize: 16 }}>
+                  📈 Investment Details
+                </h3>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 12, color: '#888' }}>Cycle</div>
+                    <div style={{ fontWeight: 600 }}>{cycleDays} Days</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      Rate of Return
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#22a06b' }}>
+                      {returnPercentage}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      Daily Profit (est.)
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#ff6b35' }}>
+                      Rs. {dailyProfit.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      Total Profit
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#22a06b' }}>
+                      Rs. {totalProfit.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    marginTop: 15,
+                    height: 8,
+                    background: '#333',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${(dailyProfit / ((p.price * returnPercentage) / 100 / cycleDays)) * 100}%`,
+                      height: '100%',
+                      background: '#ff6b35',
+                      borderRadius: 4,
+                    }}
+                  />
+                </div>
+              </div>
+              <button
+                className="detail-add-btn"
+                onClick={() => navigate(`/payment/${p.id}`)}
+              >
+                Buy Now
               </button>
               <button
                 className="btn btn-outline"
@@ -1606,9 +2967,9 @@ function AppShell() {
                   borderRadius: 12,
                   marginTop: 10,
                 }}
-                onClick={() => navigate('/cart')}
+                onClick={() => navigate(`/payment/${p.id}`)}
               >
-                View Cart →
+                Go to Payment →
               </button>
             </div>
           </div>
@@ -1617,12 +2978,7 @@ function AppShell() {
     );
   }
 
-  function CartPage({
-    cart,
-    onRemove,
-    onChangeQty,
-    subtotal,
-    cashbackTotal,
+  function PaymentPage({
     epDisplay,
     referLink,
     onCopyEP,
@@ -1630,249 +2986,505 @@ function AppShell() {
     onPlaceOrder,
     currentUser,
   }) {
+    const { id } = useParams();
     const navigate = useNavigate();
-    const empty = cart.length === 0;
+    const [paymentMethod, setPaymentMethod] = useState('easypaisa');
+    const [paymentDetails, setPaymentDetails] = useState({});
+    const product = useMemo(
+      () => PRODUCTS.find((x) => String(x.id) === String(id)) || null,
+      [id],
+    );
+
+    if (!product)
+      return (
+        <div id="cart-page" className="page active">
+          <div style={{ padding: '0', maxWidth: 780, margin: '0 auto' }}>
+            <div className="back-btn" onClick={() => navigate('/')}>
+              ← Back to Products
+            </div>
+            <div className="cart-empty">
+              <div className="big">❌</div>
+              <p>Product not found.</p>
+            </div>
+          </div>
+        </div>
+      );
+
+    const subtotal = product.price;
+    const cashbackTotal = product.cashback;
+    const { dailyProfit, totalProfit, cycleDays, returnPercentage } =
+      product.profitDetails;
+
+    const handlePaymentMethodChange = (method) => {
+      setPaymentMethod(method);
+      if (method === 'easypaisa') setPaymentDetails({ name: '', number: '' });
+      else if (method === 'jazzcash')
+        setPaymentDetails({ name: '', number: '' });
+      else if (method === 'bank_card')
+        setPaymentDetails({ cardNumber: '', expiry: '', cvv: '', name: '' });
+    };
+
+    const handlePlaceOrder = () => {
+      let isValid = false;
+      if (paymentMethod === 'easypaisa')
+        isValid =
+          paymentDetails.name &&
+          paymentDetails.number &&
+          paymentDetails.number.length >= 10;
+      else if (paymentMethod === 'jazzcash')
+        isValid =
+          paymentDetails.name &&
+          paymentDetails.number &&
+          paymentDetails.number.length >= 10;
+      else if (paymentMethod === 'bank_card')
+        isValid =
+          paymentDetails.cardNumber &&
+          paymentDetails.cardNumber.length >= 15 &&
+          paymentDetails.expiry &&
+          paymentDetails.cvv &&
+          paymentDetails.name;
+      if (!isValid) {
+        alert('Please fill all payment details correctly');
+        return;
+      }
+      onPlaceOrder(product, paymentMethod, paymentDetails);
+    };
 
     return (
       <div id="cart-page" className="page active">
         <div style={{ padding: '0', maxWidth: 780, margin: '0 auto' }}>
           <div className="back-btn" onClick={() => navigate('/')}>
-            ← Shopping Jari Rakho
+            ← Back to Products
           </div>
-          <div className="cart-header">🛒 Tumhara Cart</div>
-
-          {empty ? (
-            <div className="cart-empty">
-              <div className="big">🛒</div>
-              <p
+          <div className="cart-item" style={{ marginBottom: 14 }}>
+            <div className="ci-img">
+              <img
+                src={product.img}
+                alt={product.name}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = FALLBACK;
+                }}
+              />
+            </div>
+            <div className="ci-info">
+              <div className="ci-name">{product.name}</div>
+              <div className="ci-price">
+                Rs. {product.price.toLocaleString()}
+              </div>
+              <div
+                style={{ color: '#22a06b', fontSize: '.86rem', marginTop: 6 }}
+              >
+                Cashback: Rs. {product.cashback.toLocaleString()}
+              </div>
+            </div>
+          </div>
+          <div className="order-summary">
+            <div className="os-title">Payment Summary</div>
+            <div className="os-row">
+              <span className="lbl">Price</span>
+              <span className="val">Rs. {subtotal.toLocaleString()}</span>
+            </div>
+            <div className="os-row">
+              <span className="lbl">Cycle</span>
+              <span className="val">{cycleDays} Days</span>
+            </div>
+            <div className="os-row">
+              <span className="lbl">Rate of Return</span>
+              <span className="val green">{returnPercentage}%</span>
+            </div>
+            <div className="os-row">
+              <span className="lbl">Daily Profit</span>
+              <span className="val gold">
+                Rs. {dailyProfit.toLocaleString()}
+              </span>
+            </div>
+            <div className="os-row">
+              <span className="lbl">Total Profit</span>
+              <span className="val green">
+                Rs. {totalProfit.toLocaleString()}
+              </span>
+            </div>
+            <div className="os-row">
+              <span className="lbl">Cashback</span>
+              <span className="val green">
+                Rs. {cashbackTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
+          <div className="ep-pay-box">
+            <h3>Select Payment Method</h3>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+              {[
+                { id: 'easypaisa', label: '📱 EasyPaisa' },
+                { id: 'jazzcash', label: '💳 JazzCash' },
+                { id: 'bank_card', label: '💳 Bank Card' },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  className={`tab ${paymentMethod === m.id ? 'active' : ''}`}
+                  onClick={() => handlePaymentMethodChange(m.id)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {paymentMethod === 'easypaisa' && (
+              <div
                 style={{
-                  fontFamily: 'var(--fh)',
-                  fontSize: '1.1rem',
-                  marginBottom: 8,
+                  background: '#1a1a27',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginTop: 15,
                 }}
               >
-                Cart Khali Hai!
-              </p>
-              <p style={{ marginBottom: 20 }}>
-                Koi product add nahi kiya abhi tak.
-              </p>
-              <button className="btn btn-primary" onClick={() => navigate('/')}>
-                Products Dekho
-              </button>
-            </div>
-          ) : (
-            <>
-              <div>
-                {cart.map((it) => (
-                  <div key={it.id} className="cart-item">
-                    <div className="ci-img">
-                      <img
-                        src={it.img}
-                        alt={it.name}
-                        onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = FALLBACK;
-                        }}
-                      />
-                    </div>
-                    <div className="ci-info">
-                      <div className="ci-name">{it.name}</div>
-                      <div className="ci-price">
-                        Rs. {(it.price * it.qty).toLocaleString()}{' '}
-                        <span
-                          style={{ color: 'var(--muted)', fontSize: '.76rem' }}
-                        >
-                          ({it.qty}×Rs.{it.price.toLocaleString()})
-                        </span>
-                      </div>
-                      <div className="ci-qty">
-                        <button
-                          className="qty-btn"
-                          onClick={() => onChangeQty(it.id, -1)}
-                        >
-                          −
-                        </button>
-                        <span className="qty-num">{it.qty}</span>
-                        <button
-                          className="qty-btn"
-                          onClick={() => onChangeQty(it.id, +1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                    <button
-                      className="ci-remove"
-                      onClick={() => onRemove(it.id)}
-                    >
-                      🗑 Hatao
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="order-summary">
-                <div className="os-title">📋 Order Summary</div>
-                <div className="os-row">
-                  <span className="lbl">Subtotal</span>
-                  <span className="val">Rs. {subtotal.toLocaleString()}</span>
-                </div>
-                <div className="os-row">
-                  <span className="lbl">Delivery</span>
-                  <span className="val green">FREE 🎁</span>
-                </div>
-                <div className="os-row">
-                  <span className="lbl">
-                    Tumhara Cashback ({BASE_CASHBACK_PERCENTAGE}%)
-                  </span>
-                  <span className="val green">
-                    Rs. {cashbackTotal.toLocaleString()}
-                  </span>
-                </div>
-                <div className="os-row total">
-                  <span className="lbl">Aap Pay Karein</span>
-                  <span className="val gold">
-                    Rs. {subtotal.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="ep-pay-box">
-                <h3>💚 EasyPaisa se Payment Karein</h3>
-                <div className="ep-num-big">
-                  <div>
-                    <div className="ep-num-label">EasyPaisa Account Number</div>
-                    <div className="ep-num-val">{epDisplay}</div>
-                  </div>
-                  <button className="ep-copy-btn" onClick={onCopyEP}>
-                    📋 Copy
-                  </button>
-                </div>
-                <div className="ep-steps">
-                  {[
-                    <>
-                      EasyPaisa app kholo ya <strong>*786#</strong> dial karo
-                    </>,
-                    <>
-                      <strong>Send Money</strong> → Number:{' '}
-                      <strong>{epDisplay}</strong>
-                    </>,
-                    <>
-                      Amount bhejo:{' '}
-                      <strong>Rs. {subtotal.toLocaleString()}</strong>
-                    </>,
-                    <>
-                      Payment screenshot WhatsApp pe bhejo:{' '}
-                      <strong>{epDisplay}</strong>
-                    </>,
-                  ].map((s, i) => (
-                    <div key={i} className="ep-step">
-                      <div className="num">{i + 1}</div>
-                      <span>{s}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="cb-info-box">
-                <div className="cb-info-title">
-                  💰 Tumhara CashBack — Guaranteed!
-                </div>
-                <div className="cb-row">
-                  <span className="ic">🛒</span>
-                  <span>
-                    Aap jab ye product buy karte hain, aapko{' '}
-                    <strong>
-                      {BASE_CASHBACK_PERCENTAGE}% cashback (minimum Rs.{' '}
-                      {calculateCashback(1000).toLocaleString()})
-                    </strong>{' '}
-                    milega — seedha EasyPaisa mein{' '}
-                    <strong>24 ghante ke andar!</strong>
-                  </span>
-                </div>
-                <div className="cb-row">
-                  <span className="ic">👥</span>
-                  <span>
-                    Kisi bhi dost ko <strong>refer karo</strong> — woh
-                    khareedega to aapko{' '}
-                    <strong>
-                      Rs. {REFER_BONUS.toLocaleString()} extra cashback
-                    </strong>{' '}
-                    milega!
-                  </span>
-                </div>
-              </div>
-
-              <div className="refer-box">
-                <h3>
-                  🔗 Refer Karo — Rs. {REFER_BONUS.toLocaleString()} Kamao
-                </h3>
-                <div className="refer-link-row">
-                  <input
-                    className="refer-link-input"
-                    readOnly
-                    value={referLink}
-                  />
-                  <button
-                    className="btn btn-green"
-                    onClick={onCopyRefer}
-                    style={{
-                      borderRadius: 9,
-                      fontSize: '.82rem',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Copy 🔗
-                  </button>
-                </div>
-                <p
+                <h4 style={{ marginBottom: 15, color: '#22a06b' }}>
+                  EasyPaisa Payment
+                </h4>
+                <div
                   style={{
-                    fontSize: '.73rem',
-                    color: 'var(--muted)',
-                    marginTop: 7,
-                  }}
-                >
-                  👆 Dosto ko bhejo — unke order pe{' '}
-                  <strong style={{ color: 'var(--green)' }}>
-                    Rs. {REFER_BONUS.toLocaleString()}
-                  </strong>{' '}
-                  tumhare EasyPaisa mein!
-                </p>
-              </div>
-
-              <button className="place-order-btn" onClick={onPlaceOrder}>
-                ✅ Order Confirm Karo
-              </button>
-              {!currentUser && (
-                <p
-                  style={{
-                    marginTop: 10,
-                    color: 'var(--muted)',
-                    fontSize: '.78rem',
+                    background: '#000',
+                    borderRadius: 12,
+                    padding: 15,
+                    marginBottom: 15,
                     textAlign: 'center',
                   }}
                 >
-                  Payment confirm karne ke liye login zaroori hai.
-                </p>
-              )}
-            </>
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    Send payment to
+                  </div>
+                  <div
+                    style={{ fontSize: 24, fontWeight: 700, color: '#ff6b35' }}
+                  >
+                    Mubariz
+                  </div>
+                  <div
+                    style={{ fontSize: 20, fontWeight: 600, color: '#22a06b' }}
+                  >
+                    0318-9023001
+                  </div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                    After payment, take screenshot
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Your Name"
+                    value={paymentDetails.name || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        name: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: '100%',
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+                <div>
+                  <input
+                    type="tel"
+                    placeholder="EasyPaisa Number"
+                    value={paymentDetails.number || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        number: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: '100%',
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    marginTop: 15,
+                    background: '#0f0f1a',
+                    borderRadius: 10,
+                    padding: 15,
+                    border: '1px dashed #ff6b35',
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>
+                    📸 Upload Payment Screenshot
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ width: '100%', color: '#fff' }}
+                    onChange={(e) => {
+                      if (e.target.files[0])
+                        alert('Screenshot selected: ' + e.target.files[0].name);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {paymentMethod === 'jazzcash' && (
+              <div
+                style={{
+                  background: '#1a1a27',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginTop: 15,
+                }}
+              >
+                <h4 style={{ marginBottom: 15, color: '#ff6b35' }}>
+                  JazzCash Payment
+                </h4>
+                <div
+                  style={{
+                    background: '#000',
+                    borderRadius: 12,
+                    padding: 15,
+                    marginBottom: 15,
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    Send payment to
+                  </div>
+                  <div
+                    style={{ fontSize: 24, fontWeight: 700, color: '#ff6b35' }}
+                  >
+                    Mubariz
+                  </div>
+                  <div
+                    style={{ fontSize: 20, fontWeight: 600, color: '#ff6b35' }}
+                  >
+                    0318-9023001
+                  </div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                    After payment, take screenshot
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Your Name"
+                    value={paymentDetails.name || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        name: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: '100%',
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+                <div>
+                  <input
+                    type="tel"
+                    placeholder="JazzCash Number"
+                    value={paymentDetails.number || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        number: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: '100%',
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    marginTop: 15,
+                    background: '#0f0f1a',
+                    borderRadius: 10,
+                    padding: 15,
+                    border: '1px dashed #ff6b35',
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>
+                    📸 Upload Payment Screenshot
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ width: '100%', color: '#fff' }}
+                    onChange={(e) => {
+                      if (e.target.files[0])
+                        alert('Screenshot selected: ' + e.target.files[0].name);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {paymentMethod === 'bank_card' && (
+              <div
+                style={{
+                  background: '#1a1a27',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginTop: 15,
+                }}
+              >
+                <h4 style={{ marginBottom: 15, color: '#3b82f6' }}>
+                  Bank Card Payment
+                </h4>
+                <div style={{ marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Cardholder Name"
+                    value={paymentDetails.name || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        name: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: '100%',
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Card Number (16 digits)"
+                    value={paymentDetails.cardNumber || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        cardNumber: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: '100%',
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="MM/YY"
+                    value={paymentDetails.expiry || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        expiry: e.target.value,
+                      })
+                    }
+                    style={{
+                      flex: 1,
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                  <input
+                    type="password"
+                    placeholder="CVV"
+                    value={paymentDetails.cvv || ''}
+                    onChange={(e) =>
+                      setPaymentDetails({
+                        ...paymentDetails,
+                        cvv: e.target.value,
+                      })
+                    }
+                    style={{
+                      flex: 1,
+                      background: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      padding: '12px',
+                      color: '#fff',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="refer-box">
+            <h3>Invite & Earn</h3>
+            <div className="refer-link-row">
+              <input className="refer-link-input" readOnly value={referLink} />
+              <button
+                className="btn btn-green"
+                onClick={onCopyRefer}
+                style={{
+                  borderRadius: 9,
+                  fontSize: '.82rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Copy Link
+              </button>
+            </div>
+          </div>
+          <button className="place-order-btn" onClick={handlePlaceOrder}>
+            Buy now
+          </button>
+          {!currentUser && (
+            <p
+              style={{
+                marginTop: 10,
+                color: '#888',
+                fontSize: '.78rem',
+                textAlign: 'center',
+              }}
+            >
+              Payment confirm karne ke liye login zaroori hai.
+            </p>
           )}
         </div>
       </div>
     );
   }
 
-  function LoginPage({ onLoginComplete, currentUser }) {
+  function LoginPage({
+    onLoginComplete,
+    currentUser,
+    setCurrentUser,
+    loadUserStats,
+  }) {
     const navigate = useNavigate();
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
-
     useEffect(() => {
       if (currentUser) navigate('/');
     }, [currentUser]);
-
     const submit = async (e) => {
       e.preventDefault();
       setStatus('');
@@ -1908,6 +3520,7 @@ function AppShell() {
         localStorage.setItem('cbUid', uid);
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
+        await loadUserStats(uid);
         setStatus('🎉 Login ho gaya!');
         onLoginComplete?.();
       } catch {
@@ -1916,12 +3529,11 @@ function AppShell() {
         setLoading(false);
       }
     };
-
     return (
       <div id="login-page" className="page active">
         <div className="login-card">
           <div className="llogo">
-            Cash<span>Back</span> Shop
+            Cash<span>back</span> Store
           </div>
           <p className="login-sub">Phone number + password se login karo.</p>
           <form onSubmit={submit}>
@@ -1937,7 +3549,7 @@ function AppShell() {
             </div>
             <div className="phone-hint">
               ⚠️ +92 ke saath likho — jaise{' '}
-              <strong style={{ color: 'var(--accent2)' }}>+923001234567</strong>
+              <strong style={{ color: '#ff6b35' }}>+923001234567</strong>
             </div>
             <div className="inp-group">
               <label>🔒 Password</label>
@@ -1970,14 +3582,13 @@ function AppShell() {
     );
   }
 
-  function SignupPage({ onSignupComplete }) {
+  function SignupPage({ onSignupComplete, setCurrentUser, loadUserStats }) {
     const navigate = useNavigate();
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
-
     const submit = async (e) => {
       e.preventDefault();
       setStatus('');
@@ -2011,11 +3622,13 @@ function AppShell() {
           totalOrders: 0,
           totalCashback: 0,
           referBonus: 0,
+          totalInvested: 0,
         });
         await set(ref(rtdb, `usersByPhone/${phoneKey}`), uid);
         localStorage.setItem('cbUid', uid);
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
+        await loadUserStats(uid);
         setStatus('🎉 Account created!');
         onSignupComplete?.();
         navigate('/');
@@ -2025,12 +3638,11 @@ function AppShell() {
         setLoading(false);
       }
     };
-
     return (
       <div id="login-page" className="page active">
         <div className="login-card">
           <div className="llogo">
-            Cash<span>Back</span> Shop
+            Cash<span>back</span> Store
           </div>
           <p className="login-sub">Signup ke liye phone + password use karo.</p>
           <form onSubmit={submit}>
@@ -2046,7 +3658,7 @@ function AppShell() {
             </div>
             <div className="phone-hint">
               ⚠️ +92 ke saath likho — jaise{' '}
-              <strong style={{ color: 'var(--accent2)' }}>+923001234567</strong>
+              <strong style={{ color: '#ff6b35' }}>+923001234567</strong>
             </div>
             <div className="inp-group">
               <label>🔒 Password</label>
