@@ -3538,7 +3538,7 @@ function AppShell() {
           <p className="login-sub">Phone number + password se login karo.</p>
           <form onSubmit={submit}>
             <div className="inp-group">
-              <label>📱 Phone Number</label>
+              <label>📱 Phone Numbers</label>
               <input
                 type="tel"
                 value={phone}
