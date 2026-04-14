@@ -9,6 +9,12 @@ import {
   useParams,
 } from 'react-router-dom';
 import { child, get, ref, set, push, update } from 'firebase/database';
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from 'firebase/storage';
 import bcrypt from 'bcryptjs';
 import { rtdb } from './firebase';
 import { normalizePakistanPhone, phoneDigitsForQuery } from './lib/phoneAuth';
@@ -19,20 +25,51 @@ const FALLBACK = 'https://placehold.co/600x400/1a1a27/ff6b35?text=Product';
 const EP_NUM = '03001234567';
 const EP_DISPLAY = '0300-1234567';
 
-const BASE_CASHBACK_PERCENTAGE = 15; // 15% cashback on product price
+const BASE_CASHBACK_PERCENTAGE = 15;
 const REFER_BONUS = 1500;
-const INVESTMENT_RETURN_PERCENTAGE = 12; // 12% return on investment
+const INVESTMENT_RETURN_PERCENTAGE = 12;
 const MIN_WITHDRAWAL_AMOUNT = 500;
 
-// Calculate cashback based on product price (15% of price)
+// Investment Plans
+const INVESTMENT_PLANS = [
+  {
+    id: 1,
+    name: 'Basic Plan',
+    minAmount: 500,
+    returnAmount: 700,
+    duration: '12 hours',
+    returnPercentage: 40,
+  },
+  {
+    id: 2,
+    name: 'Standard Plan',
+    minAmount: 1000,
+    returnAmount: 1500,
+    duration: '24 hours',
+    returnPercentage: 50,
+  },
+  {
+    id: 3,
+    name: 'Premium Plan',
+    minAmount: 2000,
+    returnAmount: 3200,
+    duration: '48 hours',
+    returnPercentage: 60,
+  },
+  {
+    id: 4,
+    name: 'Gold Plan',
+    minAmount: 5000,
+    returnAmount: 8500,
+    duration: '72 hours',
+    returnPercentage: 70,
+  },
+];
+
 const calculateCashback = (price) =>
   Math.round((price * BASE_CASHBACK_PERCENTAGE) / 100);
-
-// Calculate investment return
 const calculateInvestmentReturn = (amount) =>
   Math.round((amount * INVESTMENT_RETURN_PERCENTAGE) / 100);
-
-// Calculate daily profit
 const calculateDailyProfit = (
   price,
   cycleDays = 300,
@@ -220,14 +257,29 @@ const PRODUCTS = [
   desc: `Assalam o Alaikum! ${p.description} Is product ko buy karne par aapko Rs. ${calculateCashback(p.price).toLocaleString()} cashback milega (24 ghante ke andar). Agar aap kisi dost ko refer karte hain, to aapko ${REFER_BONUS} extra cashback milega.`,
 }));
 
-// Payment method constants
-const PAYMENT_METHODS = {
-  EASYPAISA: 'easypaisa',
-  JAZZCASH: 'jazzcash',
-  BANK_CARD: 'bank_card',
+const compressImage = (file, maxWidth = 800, quality = 0.6) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(maxWidth / img.width, 1);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 };
 
-// ─── Profile Dropdown Component ───────────────────────────────────────────────
+const PAYMENT_METHODS = { EASYPAISA: 'easypaisa', JAZZCASH: 'jazzcash' };
+
+// Profile Dropdown Component
 function ProfileDropdown({
   currentUser,
   onLogout,
@@ -237,7 +289,6 @@ function ProfileDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-
   useEffect(() => {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
@@ -245,14 +296,12 @@ function ProfileDropdown({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
   const initials = currentUser?.phone
     ? currentUser.phone.replace(/\D/g, '').slice(-4, -2)
     : 'U';
   const shortPhone = currentUser?.phone
     ? currentUser.phone.replace('+92', '0').replace(/(\d{4})(\d{7})/, '$1-$2')
     : '';
-
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
@@ -261,7 +310,7 @@ function ProfileDropdown({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          background: 'rgb(228, 220, 220)',
+          background: '#2a2a3a',
           border: '1px solid rgba(255,255,255,0.2)',
           color: '#fff',
           padding: '7px 13px',
@@ -412,6 +461,14 @@ function ProfileDropdown({
               onNavigate('/refer');
             }}
           />
+          <MenuItem
+            icon="👥"
+            label="My Referrals"
+            onClick={() => {
+              setOpen(false);
+              onNavigate('/my-referrals');
+            }}
+          />
           <Divider />
           <MenuItem
             icon="🚪"
@@ -483,12 +540,435 @@ function Divider() {
   return <div style={{ height: '0.5px', background: '#eee' }} />;
 }
 
-// ─── Investment Page Component ────────────────────────────────────────────
-function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
-  const [investmentAmount, setInvestmentAmount] = useState('');
+// Investment Plans Page Component
+function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
+  const navigate = useNavigate();
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [screenshot, setScreenshot] = useState(null);
+  const [screenshotPreview, setScreenshotPreview] = useState('');
   const [loading, setLoading] = useState(false);
+  const [address, setAddress] = useState('');
+
+  const handlePlanSelect = (plan) => {
+    setSelectedPlan(plan);
+  };
+
+  const handleScreenshotChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setScreenshot(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setScreenshotPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // const handleInvest = async () => {
+  //   if (!currentUser) {
+  //     showToast('Pehle login karo!');
+  //     navigate('/login');
+  //     return;
+  //   }
+  //   if (!selectedPlan) {
+  //     showToast('Please select an investment plan');
+  //     return;
+  //   }
+  //   if (!address) {
+  //     showToast('Please enter your address');
+  //     return;
+  //   }
+  //   if (!screenshot) {
+  //     showToast('Please upload payment screenshot');
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   try {
+  //     const storage = getStorage();
+  //     const screenshotRef = storageRef(
+  //       storage,
+  //       `investments/${currentUser.uid}/${Date.now()}_screenshot.jpg`,
+  //     );
+  //     await uploadBytes(screenshotRef, screenshot);
+  //     const screenshotUrl = await getDownloadURL(screenshotRef);
+
+  //     const investmentId = push(
+  //       ref(rtdb, `investments/${currentUser.uid}`),
+  //     ).key;
+  //     await set(ref(rtdb, `investments/${currentUser.uid}/${investmentId}`), {
+  //       planId: selectedPlan.id,
+  //       planName: selectedPlan.name,
+  //       amount: selectedPlan.minAmount,
+  //       expectedReturn: selectedPlan.returnAmount,
+  //       address,
+  //       screenshotUrl,
+  //       timestamp: Date.now(),
+  //       status: 'pending',
+  //       expectedReturnDate:
+  //         Date.now() +
+  //         (selectedPlan.duration === '12 hours'
+  //           ? 12
+  //           : selectedPlan.duration === '24 hours'
+  //             ? 24
+  //             : selectedPlan.duration === '48 hours'
+  //               ? 48
+  //               : 72) *
+  //           60 *
+  //           60 *
+  //           1000,
+  //     });
+  //     await set(
+  //       ref(rtdb, `cashbackHistory/${currentUser.uid}/${investmentId}`),
+  //       {
+  //         type: 'investment',
+  //         amount: -selectedPlan.minAmount,
+  //         description: `Investment in ${selectedPlan.name} of Rs. ${selectedPlan.minAmount.toLocaleString()}`,
+  //         timestamp: Date.now(),
+  //         status: 'pending',
+  //       },
+  //     );
+  //     showToast(
+  //       `✅ Investment request submitted! You will receive Rs. ${selectedPlan.returnAmount.toLocaleString()} in ${selectedPlan.duration}`,
+  //     );
+  //     setSelectedPlan(null);
+  //     setAddress('');
+  //     setScreenshot(null);
+  //     setScreenshotPreview('');
+  //     if (onInvest) onInvest();
+  //   } catch (error) {
+  //     console.error('Error submitting investment:', error);
+  //     showToast('Investment submission failed');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const handleInvest = async () => {
+    if (!currentUser) {
+      showToast('Pehle login karo!');
+      navigate('/login');
+      return;
+    }
+    if (!selectedPlan) {
+      showToast('Please select an investment plan');
+      return;
+    }
+    if (!address) {
+      showToast('Please enter your address');
+      return;
+    }
+    if (!screenshot) {
+      showToast('Please upload payment screenshot');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Image = await compressImage(screenshot);
+
+        const investmentId = push(
+          ref(rtdb, `investments/${currentUser.uid}`),
+        ).key;
+        await set(ref(rtdb, `investments/${currentUser.uid}/${investmentId}`), {
+          planId: selectedPlan.id,
+          planName: selectedPlan.name,
+          amount: selectedPlan.minAmount,
+          expectedReturn: selectedPlan.returnAmount,
+          address,
+          screenshotUrl: base64Image, // base64 stored directly
+          timestamp: Date.now(),
+          status: 'pending',
+          expectedReturnDate:
+            Date.now() +
+            (selectedPlan.duration === '12 hours'
+              ? 12
+              : selectedPlan.duration === '24 hours'
+                ? 24
+                : selectedPlan.duration === '48 hours'
+                  ? 48
+                  : 72) *
+              60 *
+              60 *
+              1000,
+        });
+
+        await set(
+          ref(rtdb, `cashbackHistory/${currentUser.uid}/${investmentId}`),
+          {
+            type: 'investment',
+            amount: -selectedPlan.minAmount,
+            description: `Investment in ${selectedPlan.name} of Rs. ${selectedPlan.minAmount.toLocaleString()}`,
+            timestamp: Date.now(),
+            status: 'pending',
+          },
+        );
+
+        showToast(
+          `✅ Investment submitted! You will receive Rs. ${selectedPlan.returnAmount.toLocaleString()} in ${selectedPlan.duration}`,
+        );
+        setSelectedPlan(null);
+        setAddress('');
+        setScreenshot(null);
+        setScreenshotPreview('');
+        setLoading(false);
+      };
+      reader.readAsDataURL(screenshot);
+    } catch (error) {
+      console.error('Error submitting investment:', error);
+      showToast('Investment submission failed');
+      setLoading(false);
+    }
+  };
+  return (
+    <div id="investment-plans-page" className="page active">
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Wapas Jao
+        </div>
+        <div className="cart-header">💰 Investment Plans</div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 20,
+            marginBottom: 30,
+          }}
+        >
+          {INVESTMENT_PLANS.map((plan) => (
+            <div
+              key={plan.id}
+              onClick={() => handlePlanSelect(plan)}
+              style={{
+                background:
+                  selectedPlan?.id === plan.id
+                    ? 'linear-gradient(135deg, #ff6b35, #ff8c5a)'
+                    : '#1a1a27',
+                borderRadius: 20,
+                padding: 20,
+                textAlign: 'center',
+                cursor: 'pointer',
+                border:
+                  selectedPlan?.id === plan.id
+                    ? '2px solid #ff6b35'
+                    : '1px solid #333',
+                transition: 'all 0.3s',
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10 }}>📈</div>
+              <h3 style={{ color: '#fff', marginBottom: 10 }}>{plan.name}</h3>
+              <div
+                style={{
+                  fontSize: 24,
+                  fontWeight: 700,
+                  color: '#22a06b',
+                  marginBottom: 5,
+                }}
+              >
+                Rs. {plan.minAmount.toLocaleString()}
+              </div>
+              <div style={{ fontSize: 14, color: '#ccc', marginBottom: 5 }}>
+                Get Rs. {plan.returnAmount.toLocaleString()}
+              </div>
+              <div style={{ fontSize: 12, color: '#ff6b35', marginBottom: 5 }}>
+                +{plan.returnPercentage}% Return
+              </div>
+              <div style={{ fontSize: 12, color: '#aaa' }}>
+                Duration: {plan.duration}
+              </div>
+            </div>
+          ))}
+        </div>
+        {selectedPlan && (
+          <div
+            style={{
+              background: '#1a1a27',
+              borderRadius: 24,
+              padding: 30,
+              marginBottom: 30,
+            }}
+          >
+            <h3
+              style={{
+                color: '#ff6b35',
+                marginBottom: 20,
+                textAlign: 'center',
+              }}
+            >
+              Invest in {selectedPlan.name}
+            </h3>
+            <div
+              style={{
+                background: '#000',
+                borderRadius: 12,
+                padding: 20,
+                textAlign: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ fontSize: 14, color: '#aaa', marginBottom: 5 }}>
+                Send payment to (EasyPaisa / JazzCash)
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#ff6b35' }}>
+                Mubariz
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: '#22a06b' }}>
+                0318-9023001
+              </div>
+              <div style={{ fontSize: 16, color: '#ff6b35', marginTop: 10 }}>
+                Amount: Rs. {selectedPlan.minAmount.toLocaleString()}
+              </div>
+            </div>
+            <div style={{ marginBottom: 15 }}>
+              <label
+                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
+              >
+                Complete Address
+              </label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Your complete address"
+                style={{
+                  width: '100%',
+                  background: '#0f0f1a',
+                  border: '1px solid #333',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  color: '#fff',
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
+              >
+                Upload Payment Screenshot
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleScreenshotChange}
+                style={{ width: '100%', color: '#fff' }}
+              />
+              {screenshotPreview && (
+                <img
+                  src={screenshotPreview}
+                  alt="Preview"
+                  style={{
+                    marginTop: 10,
+                    width: '100%',
+                    maxHeight: 200,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                  }}
+                />
+              )}
+            </div>
+            <button
+              onClick={handleInvest}
+              disabled={loading}
+              style={{
+                width: '100%',
+                background: '#ff6b35',
+                border: 'none',
+                borderRadius: 12,
+                padding: '16px',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 16,
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading
+                ? 'Submitting...'
+                : `Invest Rs. ${selectedPlan.minAmount.toLocaleString()}`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Investment Page Component
+function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
+  const navigate = useNavigate();
+  return (
+    <div id="investment-page" className="page active">
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Wapas Jao
+        </div>
+        <div className="cart-header">💰 Investment Options</div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 20,
+            marginBottom: 30,
+          }}
+        >
+          <div
+            onClick={() => navigate('/investment-plans')}
+            style={{
+              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+              borderRadius: 24,
+              padding: 30,
+              textAlign: 'center',
+              cursor: 'pointer',
+              border: '1px solid #ff6b35',
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 15 }}>📊</div>
+            <h3 style={{ color: '#ff6b35', marginBottom: 10 }}>
+              Investment Plans
+            </h3>
+            <p style={{ color: '#ccc', fontSize: 14 }}>
+              Invest minimum Rs. 500 and get up to 70% return
+            </p>
+            <div style={{ marginTop: 15, fontSize: 12, color: '#22a06b' }}>
+              Click to View Plans →
+            </div>
+          </div>
+          <div
+            onClick={() => navigate('/my-investments')}
+            style={{
+              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+              borderRadius: 24,
+              padding: 30,
+              textAlign: 'center',
+              cursor: 'pointer',
+              border: '1px solid #22a06b',
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 15 }}>📋</div>
+            <h3 style={{ color: '#22a06b', marginBottom: 10 }}>
+              My Investments
+            </h3>
+            <p style={{ color: '#ccc', fontSize: 14 }}>
+              Track your active and completed investments
+            </p>
+            <div style={{ marginTop: 15, fontSize: 12, color: '#ff6b35' }}>
+              Click to View →
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// My Investments Page
+function MyInvestmentsPage({ currentUser, showToast }) {
   const [investments, setInvestments] = useState([]);
-  const [loadingInvestments, setLoadingInvestments] = useState(true);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -498,10 +978,9 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
     }
     fetchInvestments();
   }, [currentUser, navigate]);
-
   const fetchInvestments = async () => {
     if (!currentUser) return;
-    setLoadingInvestments(true);
+    setLoading(true);
     try {
       const investmentsRef = ref(rtdb, `investments/${currentUser.uid}`);
       const snapshot = await get(investmentsRef);
@@ -512,7 +991,9 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
             id,
             ...inv,
             date: new Date(inv.timestamp),
-            expectedReturn: calculateInvestmentReturn(inv.amount),
+            expectedReturnDate: inv.expectedReturnDate
+              ? new Date(inv.expectedReturnDate)
+              : null,
           }),
         );
         investmentsList.sort((a, b) => b.timestamp - a.timestamp);
@@ -523,79 +1004,46 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
     } catch (error) {
       console.error('Error fetching investments:', error);
     } finally {
-      setLoadingInvestments(false);
-    }
-  };
-
-  const handleInvest = async () => {
-    if (!currentUser) {
-      showToast('Pehle login karo!');
-      navigate('/login');
-      return;
-    }
-    const amount = parseInt(investmentAmount);
-    if (isNaN(amount) || amount < 1000) {
-      showToast('Investment amount kam se kam Rs. 1,000 hona chahiye');
-      return;
-    }
-    if (amount > (userStats?.totalCashback || 0)) {
-      showToast(
-        'Aapke paas itna cashback nahi hai! Pehle shopping karo cashback kamao',
-      );
-      return;
-    }
-    setLoading(true);
-    try {
-      const investmentId = push(
-        ref(rtdb, `investments/${currentUser.uid}`),
-      ).key;
-      const returnAmount = calculateInvestmentReturn(amount);
-      await set(ref(rtdb, `investments/${currentUser.uid}/${investmentId}`), {
-        amount,
-        returnAmount,
-        timestamp: Date.now(),
-        status: 'active',
-        expectedReturnDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      });
-      const userRef = ref(rtdb, `users/${currentUser.uid}`);
-      const userSnap = await get(userRef);
-      const currentData = userSnap.exists() ? userSnap.val() : {};
-      const currentCashback = currentData.totalCashback || 0;
-      const currentInvested = currentData.totalInvested || 0;
-      await update(ref(rtdb, `users/${currentUser.uid}`), {
-        totalCashback: currentCashback - amount,
-        totalInvested: currentInvested + amount,
-      });
-      await set(
-        ref(rtdb, `cashbackHistory/${currentUser.uid}/${investmentId}`),
-        {
-          type: 'investment',
-          amount: -amount,
-          description: `Investment of Rs. ${amount.toLocaleString()}`,
-          timestamp: Date.now(),
-        },
-      );
-      await loadUserStats(currentUser.uid);
-      await fetchInvestments();
-      setInvestmentAmount('');
-      showToast(
-        `✅ Rs. ${amount.toLocaleString()} invest kar diya! ${INVESTMENT_RETURN_PERCENTAGE}% return milega 30 din mein`,
-      );
-    } catch (error) {
-      console.error('Error making investment:', error);
-      showToast('Investment karne mein error aa gaya');
-    } finally {
       setLoading(false);
     }
   };
 
-  const totalInvested = investments.reduce((sum, inv) => sum + inv.amount, 0);
-  const totalExpectedReturn = investments.reduce(
-    (sum, inv) => sum + inv.expectedReturn,
-    0,
-  );
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'pending':
+        return {
+          text: 'Pending',
+          color: '#cf7808',
+          bg: 'rgba(207, 120, 8, 0.1)',
+        };
+      case 'active':
+        return {
+          text: 'Active',
+          color: '#22a06b',
+          bg: 'rgba(34, 160, 107, 0.1)',
+        };
+      case 'completed':
+        return {
+          text: 'Completed',
+          color: '#22a06b',
+          bg: 'rgba(34, 160, 107, 0.2)',
+        };
+      case 'rejected':
+        return {
+          text: 'Rejected',
+          color: '#c0392b',
+          bg: 'rgba(192, 57, 43, 0.1)',
+        };
+      default:
+        return {
+          text: status || 'Pending',
+          color: '#aaa',
+          bg: 'rgba(136, 136, 136, 0.1)',
+        };
+    }
+  };
 
-  if (!currentUser) {
+  if (!currentUser)
     return (
       <div className="page active">
         <div
@@ -608,9 +1056,6 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
         >
           <div className="big">💰</div>
           <h2>Pehle Login Karo</h2>
-          <p style={{ marginBottom: 20 }}>
-            Investment karne ke liye login karna zaroori hai.
-          </p>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
@@ -620,157 +1065,40 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
         </div>
       </div>
     );
-  }
 
   return (
-    <div id="investment-page" className="page active">
+    <div id="my-investments-page" className="page active">
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
-        <div className="back-btn" onClick={() => navigate('/')}>
+        <div className="back-btn" onClick={() => navigate('/investment')}>
           ← Wapas Jao
         </div>
-        <div className="cart-header">
-          💰 Investment - {INVESTMENT_RETURN_PERCENTAGE}% Return in 30 Days
-        </div>
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: 24,
-            padding: 30,
-            marginBottom: 30,
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 48, marginBottom: 15 }}>📈</div>
-          <h2 style={{ marginBottom: 10, color: '#ff6b35' }}>
-            Invest Your Cashback
-          </h2>
-          <p style={{ color: '#aaa', marginBottom: 25 }}>
-            Apne cashback ko invest karo aur {INVESTMENT_RETURN_PERCENTAGE}%
-            extra return kamao 30 din mein!
-          </p>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 20,
-              marginBottom: 30,
-            }}
-          >
-            <div
-              style={{ background: '#000000', borderRadius: 16, padding: 20 }}
-            >
-              <div style={{ fontSize: 14, color: '#888', marginBottom: 5 }}>
-                Available Cashback
-              </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: '#22a06b' }}>
-                Rs. {(userStats?.totalCashback || 0).toLocaleString()}
-              </div>
-            </div>
-            <div
-              style={{ background: '#000000', borderRadius: 16, padding: 20 }}
-            >
-              <div style={{ fontSize: 14, color: '#888', marginBottom: 5 }}>
-                Total Invested
-              </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: '#ff6b35' }}>
-                Rs. {totalInvested.toLocaleString()}
-              </div>
-            </div>
+        <div className="cart-header">📋 My Investments</div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
+            Loading investments...
           </div>
-          <div
-            style={{
-              background: '#000000',
-              borderRadius: 16,
-              padding: 20,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 14,
-                color: '#888',
-                marginBottom: 10,
-                textAlign: 'left',
-              }}
+        ) : investments.length === 0 ? (
+          <div className="cart-empty">
+            <div className="big">📭</div>
+            <p>Abhi tak koi investment nahi ki</p>
+            <button
+              className="btn btn-primary"
+              onClick={() => navigate('/investment-plans')}
             >
-              Investment Amount (Min. Rs. 1,000)
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                value={investmentAmount}
-                onChange={(e) => setInvestmentAmount(e.target.value)}
-                placeholder="Enter amount"
-                style={{
-                  flex: 1,
-                  background: '#1a1a27',
-                  border: '1px solid #333',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  color: '#fff',
-                  fontSize: 16,
-                }}
-              />
-              <button
-                onClick={handleInvest}
-                disabled={loading || (userStats?.totalCashback || 0) < 1000}
-                style={{
-                  background: '#ff6b35',
-                  border: 'none',
-                  borderRadius: 12,
-                  padding: '14px 28px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  opacity:
-                    loading || (userStats?.totalCashback || 0) < 1000 ? 0.6 : 1,
-                }}
-              >
-                {loading ? 'Processing...' : 'Invest Now'}
-              </button>
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#888',
-                marginTop: 10,
-                textAlign: 'left',
-              }}
-            >
-              💡 {INVESTMENT_RETURN_PERCENTAGE}% return on investment after 30
-              days
-            </div>
+              Invest Now
+            </button>
           </div>
-        </div>
-        <div style={{ background: '#1a1a27', borderRadius: 16, padding: 25 }}>
-          <h3
-            style={{
-              marginBottom: 20,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            📊 Your Investments
-          </h3>
-          {loadingInvestments ? (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              Loading investments...
-            </div>
-          ) : investments.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
-              <div style={{ fontSize: 48, marginBottom: 10 }}>📭</div>
-              <p>Abhi tak koi investment nahi ki</p>
-            </div>
-          ) : (
-            investments.map((inv) => (
+        ) : (
+          investments.map((inv) => {
+            const statusBadge = getStatusBadge(inv.status);
+            return (
               <div
                 key={inv.id}
                 style={{
-                  background: '#000000',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 12,
+                  background: '#1a1a27',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginBottom: 20,
                 }}
               >
                 <div
@@ -780,82 +1108,104 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
                     alignItems: 'center',
                     flexWrap: 'wrap',
                     gap: 10,
+                    marginBottom: 15,
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 16 }}>
-                      Rs. {inv.amount.toLocaleString()}
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 18,
+                        color: '#ff6b35',
+                      }}
+                    >
+                      {inv.planName || 'Investment'}
                     </div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
                       {inv.date.toLocaleDateString()}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: '#22a06b', fontWeight: 600 }}>
-                      Expected Return: Rs. {inv.expectedReturn.toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#888' }}>
-                      +{INVESTMENT_RETURN_PERCENTAGE}% in 30 days
-                    </div>
-                  </div>
+                  <span
+                    style={{
+                      background: statusBadge.bg,
+                      color: statusBadge.color,
+                      padding: '4px 12px',
+                      borderRadius: 20,
+                      fontSize: 12,
+                    }}
+                  >
+                    {statusBadge.text}
+                  </span>
                 </div>
                 <div
                   style={{
-                    marginTop: 10,
-                    height: 6,
-                    background: '#333',
-                    borderRadius: 3,
-                    overflow: 'hidden',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 15,
+                    marginBottom: 15,
                   }}
                 >
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      background: '#ff6b35',
-                      borderRadius: 3,
-                    }}
-                  />
+                  <div>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
+                      Invested Amount
+                    </div>
+                    <div
+                      style={{ fontSize: 20, fontWeight: 600, color: '#fff' }}
+                    >
+                      Rs. {inv.amount?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
+                      Expected Return
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 600,
+                        color: '#22a06b',
+                      }}
+                    >
+                      Rs. {inv.expectedReturn?.toLocaleString()}
+                    </div>
+                  </div>
                 </div>
+                <div style={{ marginBottom: 15 }}>
+                  <div style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}>
+                    Address
+                  </div>
+                  <div style={{ fontSize: 13, color: '#ccc' }}>
+                    📍 {inv.address}
+                  </div>
+                </div>
+                {inv.screenshotUrl && (
+                  <div style={{ marginTop: 10 }}>
+                    <div
+                      style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}
+                    >
+                      Payment Screenshot:
+                    </div>
+                    <img
+                      src={inv.screenshotUrl}
+                      alt="Screenshot"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: 150,
+                        borderRadius: 8,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-            ))
-          )}
-          {totalInvested > 0 && (
-            <div
-              style={{
-                marginTop: 20,
-                padding: 15,
-                background: 'rgba(34, 160, 107, 0.1)',
-                borderRadius: 12,
-                border: '1px solid rgba(34, 160, 107, 0.3)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 10,
-                }}
-              >
-                <span>💰 Total Expected Return:</span>
-                <strong style={{ color: '#22a06b', fontSize: 18 }}>
-                  Rs. {totalExpectedReturn.toLocaleString()}
-                </strong>
-              </div>
-              <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
-                Returns will be added to your cashback after 30 days
-              </div>
-            </div>
-          )}
-        </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Withdrawal Page Component ────────────────────────────────────────────
+// Withdrawal Page Component
 function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('easypaisa');
@@ -870,7 +1220,6 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(true);
   const navigate = useNavigate();
-
   const bankOptions = [
     'ABL',
     'HBL',
@@ -1016,8 +1365,9 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
       );
       const userRef = ref(rtdb, `users/${currentUser.uid}`);
       const userSnap = await get(userRef);
-      const currentData = userSnap.exists() ? userSnap.val() : {};
-      const currentCashback = currentData.totalCashback || 0;
+      const currentCashback = userSnap.exists()
+        ? userSnap.val().totalCashback || 0
+        : 0;
       await update(ref(rtdb, `users/${currentUser.uid}`), {
         totalCashback: currentCashback - amount,
         ...userUpdateData,
@@ -1027,7 +1377,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         {
           type: 'withdrawal',
           amount: -amount,
-          description: `Withdrawal of Rs. ${amount.toLocaleString()} via ${paymentMethod === 'easypaisa' ? 'EasyPaisa' : paymentMethod === 'jazzcash' ? 'JazzCash' : 'Bank Transfer'}`,
+          description: `Withdrawal of Rs. ${amount.toLocaleString()}`,
           timestamp: Date.now(),
           status: 'pending',
           paymentMethod,
@@ -1048,7 +1398,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         setBankAccountTitle('');
       }
       showToast(
-        `✅ Withdrawal request of Rs. ${amount.toLocaleString()} submitted! Amount will be processed within 24-48 hours.`,
+        `✅ Withdrawal request of Rs. ${amount.toLocaleString()} submitted!`,
       );
     } catch (error) {
       console.error('Error processing withdrawal:', error);
@@ -1085,21 +1435,11 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           bg: 'rgba(192, 57, 43, 0.1)',
         };
       default:
-        return { text: status, color: '#888', bg: 'rgba(136, 136, 136, 0.1)' };
+        return { text: status, color: '#aaa', bg: 'rgba(136, 136, 136, 0.1)' };
     }
   };
 
-  const getPaymentMethodDisplay = (wd) => {
-    if (wd.paymentMethod === 'easypaisa')
-      return `EasyPaisa: ${wd.easyPaisaNumber} (${wd.easyPaisaName || 'N/A'})`;
-    if (wd.paymentMethod === 'jazzcash')
-      return `JazzCash: ${wd.jazzCashNumber} (${wd.jazzCashName || 'N/A'})`;
-    if (wd.paymentMethod === 'bank')
-      return `${wd.bankName}: ${wd.bankAccountNumber} (${wd.bankAccountTitle || 'N/A'})`;
-    return wd.paymentMethod || 'Unknown';
-  };
-
-  if (!currentUser) {
+  if (!currentUser)
     return (
       <div className="page active">
         <div
@@ -1112,9 +1452,6 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         >
           <div className="big">🏦</div>
           <h2>Pehle Login Karo</h2>
-          <p style={{ marginBottom: 20 }}>
-            Withdrawal karne ke liye login karna zaroori hai.
-          </p>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
@@ -1124,7 +1461,6 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         </div>
       </div>
     );
-  }
 
   return (
     <div id="withdrawal-page" className="page active">
@@ -1146,7 +1482,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
             <h2 style={{ marginBottom: 5, color: '#ff6b35' }}>
               Withdraw Your Cashback
             </h2>
-            <p style={{ color: '#aaa' }}>
+            <p style={{ color: '#ccc' }}>
               Select your preferred withdrawal method
             </p>
           </div>
@@ -1159,13 +1495,13 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
               textAlign: 'center',
             }}
           >
-            <div style={{ fontSize: 14, color: '#888', marginBottom: 5 }}>
+            <div style={{ fontSize: 14, color: '#aaa', marginBottom: 5 }}>
               Available Balance
             </div>
             <div style={{ fontSize: 42, fontWeight: 700, color: '#22a06b' }}>
               Rs. {(userStats?.totalCashback || 0).toLocaleString()}
             </div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
+            <div style={{ fontSize: 12, color: '#aaa', marginTop: 5 }}>
               Minimum withdrawal: Rs. {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
             </div>
           </div>
@@ -1175,7 +1511,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 display: 'block',
                 marginBottom: 10,
                 fontSize: 14,
-                color: '#aaa',
+                color: '#ccc',
               }}
             >
               Select Withdrawal Method
@@ -1202,10 +1538,9 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                       paymentMethod === method.id ? 'none' : '1px solid #333',
                     borderRadius: 12,
                     padding: '12px',
-                    color: paymentMethod === method.id ? '#fff' : '#aaa',
+                    color: paymentMethod === method.id ? '#fff' : '#ccc',
                     cursor: 'pointer',
                     fontWeight: 500,
-                    transition: 'all 0.2s',
                   }}
                 >
                   {method.label}
@@ -1221,7 +1556,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   📱 EasyPaisa Number
@@ -1248,7 +1583,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   👤 Account Holder Name
@@ -1279,7 +1614,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   💳 JazzCash Number
@@ -1306,7 +1641,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   👤 Account Holder Name
@@ -1337,7 +1672,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   🏦 Select Bank
@@ -1369,7 +1704,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   🔢 Account Number
@@ -1396,7 +1731,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     display: 'block',
                     marginBottom: 8,
                     fontSize: 14,
-                    color: '#aaa',
+                    color: '#ccc',
                   }}
                 >
                   📝 Account Title
@@ -1425,7 +1760,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 display: 'block',
                 marginBottom: 8,
                 fontSize: 14,
-                color: '#aaa',
+                color: '#ccc',
               }}
             >
               💰 Withdrawal Amount
@@ -1478,16 +1813,17 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
               display: 'flex',
               alignItems: 'center',
               gap: 10,
+              color: '#fff',
             }}
           >
             📋 Withdrawal History
           </h3>
           {loadingWithdrawals ? (
-            <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
               Loading history...
             </div>
           ) : withdrawals.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
               <div style={{ fontSize: 48, marginBottom: 10 }}>📭</div>
               <p>Abhi tak koi withdrawal request nahi ki</p>
             </div>
@@ -1514,10 +1850,12 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 16 }}>
+                      <div
+                        style={{ fontWeight: 600, fontSize: 16, color: '#fff' }}
+                      >
                         Rs. {wd.amount.toLocaleString()}
                       </div>
-                      <div style={{ fontSize: 12, color: '#888' }}>
+                      <div style={{ fontSize: 12, color: '#aaa' }}>
                         {wd.date.toLocaleDateString()}
                       </div>
                     </div>
@@ -1536,87 +1874,38 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                       </span>
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, color: '#aaa', marginTop: 8 }}>
-                    📱 {getPaymentMethodDisplay(wd)}
+                  <div style={{ fontSize: 13, color: '#ccc', marginTop: 8 }}>
+                    📱{' '}
+                    {wd.paymentMethod === 'easypaisa'
+                      ? `EasyPaisa: ${wd.easyPaisaNumber}`
+                      : wd.paymentMethod === 'jazzcash'
+                        ? `JazzCash: ${wd.jazzCashNumber}`
+                        : `${wd.bankName}: ${wd.bankAccountNumber}`}
                   </div>
-                  {wd.status === 'pending' && (
-                    <div
-                      style={{ fontSize: 11, color: '#cf7808', marginTop: 8 }}
-                    >
-                      ⏳ Processing - Will be sent within 24-48 hours
-                    </div>
-                  )}
-                  {wd.status === 'completed' && (
-                    <div
-                      style={{ fontSize: 11, color: '#22a06b', marginTop: 8 }}
-                    >
-                      ✅ Amount sent to your account
-                    </div>
-                  )}
                 </div>
               );
             })
           )}
-        </div>
-        <div
-          style={{
-            marginTop: 20,
-            padding: 15,
-            background: 'rgba(255, 107, 53, 0.1)',
-            borderRadius: 12,
-            border: '1px solid rgba(255, 107, 53, 0.3)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              marginBottom: 8,
-            }}
-          >
-            <span>💡</span>
-            <strong>Withdrawal Information:</strong>
-          </div>
-          <ul
-            style={{ margin: 0, paddingLeft: 20, color: '#aaa', fontSize: 13 }}
-          >
-            <li>
-              Minimum withdrawal amount: Rs.{' '}
-              {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
-            </li>
-            <li>Withdrawals are processed within 24-48 hours</li>
-            <li>Make sure your account details are correct</li>
-            <li>You can withdraw via EasyPaisa, JazzCash, or Bank Transfer</li>
-          </ul>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Referral Page Component ────────────────────────────────────────────
+// Referral Page Component
 function ReferralPage({ currentUser, onCopyRefer, referLink }) {
   const navigate = useNavigate();
   const [copySuccess, setCopySuccess] = useState(false);
-
   const shareOnWhatsApp = () => {
-    const message = `Assalam o Alaikum! 🎉\n\nJoin CashBack Shop and earn ${BASE_CASHBACK_PERCENTAGE}% cashback on every purchase! Also invest your cashback to earn ${INVESTMENT_RETURN_PERCENTAGE}% extra returns! Use my referral link to get started:\n\n${referLink}\n\nAapko bhi cashback milega aur mujhe bhi! 💰`;
-    window.open(
-      `https://wa.me/?text=${encodeURIComponent(message)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
+    const message = `Assalam o Alaikum! 🎉\n\nJoin CashBack Shop and earn ${BASE_CASHBACK_PERCENTAGE}% cashback on every purchase! Use my referral link:\n\n${referLink}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
-
   const shareOnFacebook = () => {
     window.open(
       `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referLink)}`,
       '_blank',
-      'noopener,noreferrer',
     );
   };
-
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(referLink);
@@ -1627,8 +1916,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
       alert('Copy nahi ho saka');
     }
   };
-
-  if (!currentUser) {
+  if (!currentUser)
     return (
       <div className="page active">
         <div
@@ -1641,9 +1929,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
         >
           <div className="big">🔗</div>
           <h2>Pehle Login Karo</h2>
-          <p style={{ marginBottom: 20 }}>
-            Referral link share karne ke liye login karna zaroori hai.
-          </p>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
@@ -1653,8 +1938,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
         </div>
       </div>
     );
-  }
-
   return (
     <div id="referral-page" className="page active">
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 20px' }}>
@@ -1678,7 +1961,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
           <h2 style={{ marginBottom: 10, color: '#ff6b35' }}>
             Rs. {REFER_BONUS.toLocaleString()} Bonus!
           </h2>
-          <p style={{ color: '#aaa', marginBottom: 25 }}>
+          <p style={{ color: '#ccc', marginBottom: 25 }}>
             Jab aapka dost register karega aur pehla order karega, aapko{' '}
             {REFER_BONUS} rupees extra cashback milega!
           </p>
@@ -1693,7 +1976,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             <div
               style={{
                 fontSize: 12,
-                color: '#888',
+                color: '#aaa',
                 marginBottom: 8,
                 textAlign: 'left',
               }}
@@ -1733,7 +2016,6 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
                   color: 'white',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  transition: 'all 0.3s',
                 }}
               >
                 {copySuccess ? '✅ Copied!' : '📋 Copy'}
@@ -1784,83 +2066,439 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// My Referrals Page
+function MyReferralsPage({ currentUser }) {
+  const [referrals, setReferrals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    fetchReferrals();
+  }, [currentUser, navigate]);
+  const fetchReferrals = async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    try {
+      const referralsRef = ref(rtdb, `referrals/${currentUser.uid}`);
+      const snapshot = await get(referralsRef);
+      if (snapshot.exists()) {
+        const referralsData = snapshot.val();
+        const referralsList = Object.entries(referralsData).map(
+          ([id, ref]) => ({ id, ...ref, date: new Date(ref.timestamp) }),
+        );
+        referralsList.sort((a, b) => b.timestamp - a.timestamp);
+        setReferrals(referralsList);
+      } else {
+        setReferrals([]);
+      }
+    } catch (error) {
+      console.error('Error fetching referrals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (!currentUser)
+    return (
+      <div className="page active">
+        <div
+          style={{
+            maxWidth: 600,
+            margin: '0 auto',
+            padding: 40,
+            textAlign: 'center',
+          }}
+        >
+          <div className="big">👥</div>
+          <h2>Pehle Login Karo</h2>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/login')}
+          >
+            Login Karein
+          </button>
+        </div>
+      </div>
+    );
+  return (
+    <div id="my-referrals-page" className="page active">
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Wapas Jao
+        </div>
+        <div className="cart-header">👥 My Referrals</div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
+            Loading referrals...
+          </div>
+        ) : referrals.length === 0 ? (
+          <div className="cart-empty">
+            <div className="big">👥</div>
+            <p>Abhi tak kisi ne aapka referral link use nahi kiya</p>
+            <button
+              className="btn btn-primary"
+              onClick={() => navigate('/refer')}
+            >
+              Share Referral Link
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              background: '#1a1a27',
+              borderRadius: 16,
+              overflow: 'hidden',
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr
+                  style={{
+                    background: '#0f0f1a',
+                    borderBottom: '1px solid #333',
+                  }}
+                >
+                  <th
+                    style={{
+                      padding: '15px',
+                      textAlign: 'left',
+                      color: '#ff6b35',
+                    }}
+                  >
+                    Referred User
+                  </th>
+                  <th
+                    style={{
+                      padding: '15px',
+                      textAlign: 'left',
+                      color: '#ff6b35',
+                    }}
+                  >
+                    Date
+                  </th>
+                  <th
+                    style={{
+                      padding: '15px',
+                      textAlign: 'left',
+                      color: '#ff6b35',
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      padding: '15px',
+                      textAlign: 'left',
+                      color: '#ff6b35',
+                    }}
+                  >
+                    Bonus Earned
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {referrals.map((ref) => (
+                  <tr key={ref.id} style={{ borderBottom: '1px solid #333' }}>
+                    <td style={{ padding: '15px', color: '#fff' }}>
+                      {ref.referredPhone ||
+                        ref.referredUser?.slice(0, 8) ||
+                        'Unknown'}
+                    </td>
+                    <td style={{ padding: '15px', color: '#aaa' }}>
+                      {ref.date.toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <span
+                        style={{
+                          background:
+                            ref.status === 'completed'
+                              ? 'rgba(34,160,107,0.1)'
+                              : 'rgba(207,120,8,0.1)',
+                          color:
+                            ref.status === 'completed' ? '#22a06b' : '#cf7808',
+                          padding: '4px 12px',
+                          borderRadius: 20,
+                          fontSize: 12,
+                        }}
+                      >
+                        {ref.status === 'completed'
+                          ? 'Completed'
+                          : 'Pending Order'}
+                      </span>
+                    </td>
+                    <td
+                      style={{
+                        padding: '15px',
+                        color: '#22a06b',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {ref.bonusEarned
+                        ? `+Rs. ${ref.bonusEarned.toLocaleString()}`
+                        : 'Pending'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// About Us Page
+function AboutUsPage({ onNavigate }) {
+  const navigate = useNavigate();
+  const teamMembers = [
+    {
+      name: 'Mubariz',
+      role: 'Founder & CEO',
+      icon: '👨‍💼',
+      description: 'Visionary leader behind Cashback Store',
+    },
+    {
+      name: 'Ali Raza',
+      role: 'CTO',
+      icon: '💻',
+      description: 'Technology and platform development',
+    },
+    {
+      name: 'Sara Khan',
+      role: 'Operations Manager',
+      icon: '📊',
+      description: 'Managing daily operations',
+    },
+    {
+      name: 'Usman Ahmed',
+      role: 'Customer Support Lead',
+      icon: '🎧',
+      description: '24/7 customer support',
+    },
+  ];
+  return (
+    <div id="about-us-page" className="page active">
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 20px' }}>
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Wapas Jao
+        </div>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{ fontSize: 64, marginBottom: 15 }}>🏪</div>
+          <h1 style={{ color: '#ff6b35', marginBottom: 10 }}>
+            About Cashback Store
+          </h1>
+          <p style={{ color: '#ccc', maxWidth: 700, margin: '0 auto' }}>
+            Pakistan's most trusted cashback platform offering premium products
+            with guaranteed returns
+          </p>
+        </div>
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+            borderRadius: 24,
+            padding: 30,
+            marginBottom: 30,
+          }}
+        >
+          <h2
+            style={{ color: '#ff6b35', marginBottom: 20, textAlign: 'center' }}
+          >
+            Our Mission
+          </h2>
+          <p style={{ color: '#ccc', lineHeight: 1.6, textAlign: 'center' }}>
+            At Cashback Store, we believe in making every purchase rewarding.
+            Our mission is to provide high-quality products while giving our
+            customers the best cashback rewards and investment opportunities in
+            Pakistan.
+          </p>
+        </div>
+        <div style={{ marginBottom: 30 }}>
+          <h2
+            style={{ color: '#ff6b35', marginBottom: 20, textAlign: 'center' }}
+          >
+            Meet Our Team
+          </h2>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 20,
+            }}
+          >
+            {teamMembers.map((member, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#1a1a27',
+                  borderRadius: 20,
+                  padding: 25,
+                  textAlign: 'center',
+                  border: '1px solid #333',
+                }}
+              >
+                <div style={{ fontSize: 48, marginBottom: 10 }}>
+                  {member.icon}
+                </div>
+                <h3 style={{ color: '#ff6b35', marginBottom: 5 }}>
+                  {member.name}
+                </h3>
+                <div
+                  style={{ fontSize: 14, color: '#22a06b', marginBottom: 10 }}
+                >
+                  {member.role}
+                </div>
+                <p style={{ fontSize: 12, color: '#aaa' }}>
+                  {member.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+            borderRadius: 24,
+            padding: 30,
+            marginBottom: 30,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 15 }}>🎧</div>
+          <h2 style={{ color: '#ff6b35', marginBottom: 10 }}>
+            24/7 Customer Support
+          </h2>
+          <p style={{ color: '#ccc', marginBottom: 20 }}>
+            Have questions? We're here to help!
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 20,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div
+              style={{
+                background: '#000000',
+                borderRadius: 12,
+                padding: '15px 25px',
+              }}
+            >
+              <div style={{ fontSize: 12, color: '#aaa' }}>Call / WhatsApp</div>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#22a06b' }}>
+                0318-9023001
+              </div>
+            </div>
+            <div
+              style={{
+                background: '#000000',
+                borderRadius: 12,
+                padding: '15px 25px',
+              }}
+            >
+              <div style={{ fontSize: 12, color: '#aaa' }}>Email</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#ff6b35' }}>
+                support@cashbackstore.pk
+              </div>
+            </div>
+          </div>
+        </div>
         <div
           style={{
             background: '#1a1a27',
-            borderRadius: 16,
-            padding: 25,
-            marginBottom: 20,
+            borderRadius: 24,
+            padding: 30,
+            marginBottom: 30,
           }}
         >
-          <h3
+          <h2
+            style={{ color: '#ff6b35', marginBottom: 20, textAlign: 'center' }}
+          >
+            Share Cashback Store
+          </h2>
+          <p style={{ color: '#ccc', textAlign: 'center', marginBottom: 20 }}>
+            Help your friends earn cashback too!
+          </p>
+          <div
             style={{
-              marginBottom: 15,
               display: 'flex',
-              alignItems: 'center',
-              gap: 10,
+              justifyContent: 'center',
+              gap: 15,
+              flexWrap: 'wrap',
             }}
           >
-            📋 Kaam Kaise Karta Hai?
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div
-                style={{
-                  background: '#ff6b35',
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  flexShrink: 0,
-                }}
-              >
-                1
-              </div>
-              <div>Apna referral link copy karo aur dosto ko bhejo</div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div
-                style={{
-                  background: '#ff6b35',
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  flexShrink: 0,
-                }}
-              >
-                2
-              </div>
-              <div>Dost aapke link se shop visit kare aur signup kare</div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div
-                style={{
-                  background: '#ff6b35',
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  flexShrink: 0,
-                }}
-              >
-                3
-              </div>
-              <div>
-                Dost jab pehla order karega, aapko turant{' '}
-                <strong>Rs. {REFER_BONUS.toLocaleString()}</strong> cashback
-                milega!
-              </div>
-            </div>
+            <button
+              onClick={() =>
+                window.open(
+                  `https://wa.me/?text=${encodeURIComponent('Check out Cashback Store - Pakistan best cashback platform! https://cashbackstore.pk')}`,
+                  '_blank',
+                )
+              }
+              style={{
+                background: '#25D366',
+                border: 'none',
+                borderRadius: 40,
+                padding: '12px 24px',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              📱 Share on WhatsApp
+            </button>
+            <button
+              onClick={() =>
+                window.open(
+                  `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://cashbackstore.pk')}`,
+                  '_blank',
+                )
+              }
+              style={{
+                background: '#1877F2',
+                border: 'none',
+                borderRadius: 40,
+                padding: '12px 24px',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              📘 Share on Facebook
+            </button>
+            <button
+              onClick={() =>
+                navigator.clipboard.writeText('https://cashbackstore.pk')
+              }
+              style={{
+                background: '#ff6b35',
+                border: 'none',
+                borderRadius: 40,
+                padding: '12px 24px',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              📋 Copy Link
+            </button>
           </div>
         </div>
       </div>
@@ -1868,12 +2506,11 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
   );
 }
 
-// ─── Orders Page Component ────────────────────────────────────────────
+// Orders Page Component
 function OrdersPage({ currentUser }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
@@ -1901,15 +2538,15 @@ function OrdersPage({ currentUser }) {
     };
     fetchOrders();
   }, [currentUser, navigate]);
-
-  if (loading) {
+  if (loading)
     return (
-      <div className="page active" style={{ textAlign: 'center', padding: 40 }}>
+      <div
+        className="page active"
+        style={{ textAlign: 'center', padding: 40, color: '#aaa' }}
+      >
         Loading orders...
       </div>
     );
-  }
-
   return (
     <div id="orders-page" className="page active">
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
@@ -1929,7 +2566,6 @@ function OrdersPage({ currentUser }) {
           orders.map((order) => (
             <div
               key={order.id}
-              className="order-card"
               style={{
                 background: '#1a1a27',
                 borderRadius: 16,
@@ -1945,17 +2581,19 @@ function OrdersPage({ currentUser }) {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: '#888' }}>Order ID</div>
-                  <div style={{ fontSize: 13 }}>{order.id.slice(0, 8)}</div>
+                  <div style={{ fontSize: 12, color: '#aaa' }}>Order ID</div>
+                  <div style={{ fontSize: 13, color: '#fff' }}>
+                    {order.id?.slice(0, 8)}
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: '#888' }}>Date</div>
-                  <div style={{ fontSize: 13 }}>
+                  <div style={{ fontSize: 12, color: '#aaa' }}>Date</div>
+                  <div style={{ fontSize: 13, color: '#fff' }}>
                     {order.date.toLocaleDateString()}
                   </div>
                 </div>
               </div>
-              {order.items.map((item, idx) => (
+              {order.items?.map((item, idx) => (
                 <div
                   key={idx}
                   style={{ display: 'flex', gap: 12, marginBottom: 12 }}
@@ -1971,13 +2609,17 @@ function OrdersPage({ currentUser }) {
                     }}
                   />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500 }}>{item.name}</div>
-                    <div style={{ fontSize: 13, color: '#888' }}>
+                    <div style={{ fontWeight: 500, color: '#fff' }}>
+                      {item.name}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#aaa' }}>
                       Qty: {item.qty} × Rs.{item.price.toLocaleString()}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div>Rs.{(item.price * item.qty).toLocaleString()}</div>
+                    <div style={{ color: '#fff' }}>
+                      Rs.{(item.price * item.qty).toLocaleString()}
+                    </div>
                     <div style={{ fontSize: 12, color: '#22a06b' }}>
                       +Rs.{item.cashback * item.qty} cashback
                     </div>
@@ -1996,10 +2638,11 @@ function OrdersPage({ currentUser }) {
                     display: 'flex',
                     justifyContent: 'space-between',
                     fontWeight: 600,
+                    color: '#fff',
                   }}
                 >
                   <span>Total Amount:</span>
-                  <span>Rs.{order.totalAmount.toLocaleString()}</span>
+                  <span>Rs.{order.totalAmount?.toLocaleString()}</span>
                 </div>
                 <div
                   style={{
@@ -2010,8 +2653,13 @@ function OrdersPage({ currentUser }) {
                   }}
                 >
                   <span>Cashback Earned ({BASE_CASHBACK_PERCENTAGE}%):</span>
-                  <span>+Rs.{order.cashbackEarned.toLocaleString()}</span>
+                  <span>+Rs.{order.cashbackEarned?.toLocaleString()}</span>
                 </div>
+                {order.paymentDetails?.address && (
+                  <div style={{ fontSize: 12, color: '#aaa', marginTop: 8 }}>
+                    📍 Delivery Address: {order.paymentDetails.address}
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -2021,12 +2669,11 @@ function OrdersPage({ currentUser }) {
   );
 }
 
-// ─── Cashback History Page ────────────────────────────────────────────
+// Cashback History Page
 function CashbackHistoryPage({ currentUser }) {
   const [cashbackEntries, setCashbackEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
@@ -2056,15 +2703,15 @@ function CashbackHistoryPage({ currentUser }) {
     };
     fetchCashbackHistory();
   }, [currentUser, navigate]);
-
-  if (loading) {
+  if (loading)
     return (
-      <div className="page active" style={{ textAlign: 'center', padding: 40 }}>
+      <div
+        className="page active"
+        style={{ textAlign: 'center', padding: 40, color: '#aaa' }}
+      >
         Loading history...
       </div>
     );
-  }
-
   return (
     <div id="cashback-history-page" className="page active">
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
@@ -2097,7 +2744,7 @@ function CashbackHistoryPage({ currentUser }) {
               }}
             >
               <div>
-                <div style={{ fontWeight: 500 }}>
+                <div style={{ fontWeight: 500, color: '#fff' }}>
                   {entry.type === 'order'
                     ? 'Order Cashback'
                     : entry.type === 'referral'
@@ -2108,11 +2755,11 @@ function CashbackHistoryPage({ currentUser }) {
                           ? 'Withdrawal'
                           : 'Other'}
                 </div>
-                <div style={{ fontSize: 12, color: '#888' }}>
+                <div style={{ fontSize: 12, color: '#aaa' }}>
                   {entry.date.toLocaleDateString()}
                 </div>
                 {entry.description && (
-                  <div style={{ fontSize: 11, color: '#888' }}>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>
                     {entry.description}
                   </div>
                 )}
@@ -2135,8 +2782,8 @@ function CashbackHistoryPage({ currentUser }) {
   );
 }
 
-// ─── Live Balance Marquee Component ─────────────────────────────────────────
-function LiveBalanceMarquee({ userStats, loadingStats, currentUser }) {
+// Live Balance Marquee Component
+function LiveBalanceMarquee() {
   const withdrawalMessages = [
     { user: '+92331****5679', amount: 500 },
     { user: '+92341****5099', amount: 300 },
@@ -2150,7 +2797,6 @@ function LiveBalanceMarquee({ userStats, loadingStats, currentUser }) {
     { user: '+92344****1122', amount: 600 },
   ];
   const scrollingItems = [...withdrawalMessages, ...withdrawalMessages];
-
   return (
     <div
       style={{
@@ -2178,7 +2824,7 @@ function LiveBalanceMarquee({ userStats, loadingStats, currentUser }) {
         }}
       >
         {scrollingItems.map((item, idx) => (
-          <span key={idx} style={{ color: '#ffffff' }}>
+          <span key={idx} style={{ color: '#fff' }}>
             👤 {item.user} withdrew Rs {item.amount.toLocaleString()}
           </span>
         ))}
@@ -2188,7 +2834,7 @@ function LiveBalanceMarquee({ userStats, loadingStats, currentUser }) {
   );
 }
 
-// ─── Info Cards Component ─────────────────────────────────────────
+// Info Cards Component
 function InfoCards({ onNavigate }) {
   const cards = [
     {
@@ -2203,32 +2849,42 @@ function InfoCards({ onNavigate }) {
       title: 'About Us',
       description: 'Learn more about Cashback Store',
       color: '#22a06b',
-      link: '#',
+      link: '/about',
     },
     {
       icon: '👥',
       title: 'Our Team',
       description: 'Meet the team behind Cashback Store',
       color: '#3b82f6',
-      link: '#',
+      link: '/about',
     },
     {
       icon: '🛡️',
       title: 'Support',
       description: '24/7 customer support',
       color: '#a855f7',
-      link: '#',
+      link: '/about',
+    },
+    {
+      icon: '💰',
+      title: 'Investment',
+      description: 'Invest and earn high returns',
+      color: '#ff6b35',
+      link: '/investment',
+    },
+    {
+      icon: '🔗',
+      title: 'Refer & Earn',
+      description: 'Get Rs.1500 per referral',
+      color: '#22a06b',
+      link: '/refer',
     },
   ];
-  const handleCardClick = (card) => {
-    if (card.link === '/withdraw') onNavigate(card.link);
-    else alert(`${card.title} - Coming Soon!`);
-  };
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
         gap: '16px',
         margin: '30px 20px',
         padding: '0',
@@ -2237,7 +2893,7 @@ function InfoCards({ onNavigate }) {
       {cards.map((card, idx) => (
         <div
           key={idx}
-          onClick={() => handleCardClick(card)}
+          onClick={() => onNavigate(card.link)}
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
             borderRadius: 20,
@@ -2262,7 +2918,7 @@ function InfoCards({ onNavigate }) {
           </div>
           <div
             style={{
-              fontSize: '18px',
+              fontSize: '16px',
               fontWeight: 600,
               color: card.color,
               marginBottom: '8px',
@@ -2270,7 +2926,7 @@ function InfoCards({ onNavigate }) {
           >
             {card.title}
           </div>
-          <div style={{ fontSize: '12px', color: '#aaa', lineHeight: 1.4 }}>
+          <div style={{ fontSize: '11px', color: '#ccc', lineHeight: 1.4 }}>
             {card.description}
           </div>
         </div>
@@ -2279,7 +2935,7 @@ function InfoCards({ onNavigate }) {
   );
 }
 
-// ─── Main App Shell ────────────────────────────────────────────────────────────
+// Main App Shell
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -2372,7 +3028,6 @@ function AppShell() {
       showToast('Copy nahi ho saka');
     }
   };
-  const copyEP = () => copyText(EP_NUM, `📋 ${EP_DISPLAY} copy ho gaya!`);
   const copyReferLink = () => {
     if (!currentUser) {
       showToast('Pehle login karo!');
@@ -2452,6 +3107,13 @@ function AppShell() {
             description: `Referral bonus for referring user ${currentUser.phone}`,
             timestamp: Date.now(),
           });
+          await set(ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`), {
+            referredUser: currentUser.uid,
+            referredPhone: currentUser.phone,
+            timestamp: Date.now(),
+            status: 'completed',
+            bonusEarned: REFER_BONUS,
+          });
         }
       }
       await loadUserStats(currentUser.uid);
@@ -2482,7 +3144,6 @@ function AppShell() {
     window.open(
       `https://wa.me/923001234567?text=${encodeURIComponent(msg + extra)}`,
       '_blank',
-      'noopener,noreferrer',
     );
     closeOrderModal();
   };
@@ -2514,11 +3175,7 @@ function AppShell() {
           </div>
         </div>
       </nav>
-      <LiveBalanceMarquee
-        userStats={userStats}
-        loadingStats={loadingStats}
-        currentUser={currentUser}
-      />
+      <LiveBalanceMarquee />
       <InfoCards onNavigate={navigate} />
       <div
         id="toast"
@@ -2537,7 +3194,6 @@ function AppShell() {
             <PaymentPage
               epDisplay={EP_DISPLAY}
               referLink={referLink}
-              onCopyEP={copyEP}
               onCopyRefer={copyReferLink}
               onPlaceOrder={placeOrder}
               currentUser={currentUser}
@@ -2577,6 +3233,25 @@ function AppShell() {
           }
         />
         <Route
+          path="/investment-plans"
+          element={
+            <InvestmentPlansPage
+              currentUser={currentUser}
+              showToast={showToast}
+              onInvest={() => loadUserStats(currentUser?.uid)}
+            />
+          }
+        />
+        <Route
+          path="/my-investments"
+          element={
+            <MyInvestmentsPage
+              currentUser={currentUser}
+              showToast={showToast}
+            />
+          }
+        />
+        <Route
           path="/withdraw"
           element={
             <WithdrawalPage
@@ -2605,6 +3280,11 @@ function AppShell() {
             />
           }
         />
+        <Route
+          path="/my-referrals"
+          element={<MyReferralsPage currentUser={currentUser} />}
+        />
+        <Route path="/about" element={<AboutUsPage onNavigate={navigate} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <div
@@ -2662,7 +3342,7 @@ function AppShell() {
     </>
   );
 
-  // ── Page components ────────────────────────────────────────────
+  // HomePage Component
   function HomePage() {
     const [filter, setFilter] = useState('all');
     const list = useMemo(
@@ -2699,9 +3379,7 @@ function AppShell() {
             }}
           >
             <div>
-              <span style={{ fontSize: '15px', color: '#0d0c0c' }}>
-                User ID:
-              </span>
+              <span style={{ fontSize: '15px', color: '#ccc' }}>User ID:</span>
               <span
                 style={{
                   fontSize: '14px',
@@ -2714,7 +3392,7 @@ function AppShell() {
               </span>
             </div>
             <div>
-              <span style={{ fontSize: '15px', color: '#000000' }}>
+              <span style={{ fontSize: '15px', color: '#ccc' }}>
                 Total Balance:
               </span>
               <span
@@ -2736,8 +3414,7 @@ function AppShell() {
           </h1>
           <p>
             Premium product collection, fast checkout, secure login/signup, and
-            rewards on every order. Keep shopping and grow your cashback balance
-            with every purchase.
+            rewards on every order.
           </p>
         </section>
         <section className="home-highlights">
@@ -2808,7 +3485,7 @@ function AppShell() {
                   style={{ width: '100%', padding: 9 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/payment/${p.id}`);
+                    navigate(`/product/${p.id}`);
                   }}
                 >
                   Buy Now
@@ -2821,6 +3498,7 @@ function AppShell() {
     );
   }
 
+  // DetailPage Component
   function DetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -2837,15 +3515,7 @@ function AppShell() {
             </div>
             <div className="cart-empty">
               <div className="big">❌</div>
-              <p
-                style={{
-                  fontFamily: 'var(--fh)',
-                  fontSize: '1.1rem',
-                  marginBottom: 8,
-                }}
-              >
-                Product nahi mila.
-              </p>
+              <p>Product nahi mila.</p>
               <button className="btn btn-primary" onClick={() => navigate('/')}>
                 Products Dekho
               </button>
@@ -2895,7 +3565,7 @@ function AppShell() {
                   marginTop: 20,
                 }}
               >
-                <h3 style={{ marginBottom: 15, fontSize: 16 }}>
+                <h3 style={{ marginBottom: 15, fontSize: 16, color: '#fff' }}>
                   📈 Investment Details
                 </h3>
                 <div
@@ -2906,11 +3576,13 @@ function AppShell() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 12, color: '#888' }}>Cycle</div>
-                    <div style={{ fontWeight: 600 }}>{cycleDays} Days</div>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>Cycle</div>
+                    <div style={{ fontWeight: 600, color: '#fff' }}>
+                      {cycleDays} Days
+                    </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
                       Rate of Return
                     </div>
                     <div style={{ fontWeight: 600, color: '#22a06b' }}>
@@ -2918,7 +3590,7 @@ function AppShell() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
                       Daily Profit (est.)
                     </div>
                     <div style={{ fontWeight: 600, color: '#ff6b35' }}>
@@ -2926,7 +3598,7 @@ function AppShell() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
                       Total Profit
                     </div>
                     <div style={{ fontWeight: 600, color: '#22a06b' }}>
@@ -2978,18 +3650,19 @@ function AppShell() {
     );
   }
 
+  // PaymentPage Component
   function PaymentPage({
     epDisplay,
     referLink,
-    onCopyEP,
     onCopyRefer,
     onPlaceOrder,
     currentUser,
   }) {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [paymentMethod, setPaymentMethod] = useState('easypaisa');
-    const [paymentDetails, setPaymentDetails] = useState({});
+    const [address, setAddress] = useState('');
+    const [screenshot, setScreenshot] = useState(null);
+    const [screenshotPreview, setScreenshotPreview] = useState('');
     const product = useMemo(
       () => PRODUCTS.find((x) => String(x.id) === String(id)) || null,
       [id],
@@ -3015,41 +3688,64 @@ function AppShell() {
     const { dailyProfit, totalProfit, cycleDays, returnPercentage } =
       product.profitDetails;
 
-    const handlePaymentMethodChange = (method) => {
-      setPaymentMethod(method);
-      if (method === 'easypaisa') setPaymentDetails({ name: '', number: '' });
-      else if (method === 'jazzcash')
-        setPaymentDetails({ name: '', number: '' });
-      else if (method === 'bank_card')
-        setPaymentDetails({ cardNumber: '', expiry: '', cvv: '', name: '' });
+    const handleScreenshotChange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setScreenshot(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setScreenshotPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      }
     };
 
-    const handlePlaceOrder = () => {
-      let isValid = false;
-      if (paymentMethod === 'easypaisa')
-        isValid =
-          paymentDetails.name &&
-          paymentDetails.number &&
-          paymentDetails.number.length >= 10;
-      else if (paymentMethod === 'jazzcash')
-        isValid =
-          paymentDetails.name &&
-          paymentDetails.number &&
-          paymentDetails.number.length >= 10;
-      else if (paymentMethod === 'bank_card')
-        isValid =
-          paymentDetails.cardNumber &&
-          paymentDetails.cardNumber.length >= 15 &&
-          paymentDetails.expiry &&
-          paymentDetails.cvv &&
-          paymentDetails.name;
-      if (!isValid) {
-        alert('Please fill all payment details correctly');
+    // const handlePlaceOrder = async () => {
+    //   if (!address) {
+    //     alert('Please enter your delivery address');
+    //     return;
+    //   }
+    //   if (!screenshot) {
+    //     alert('Please upload payment screenshot');
+    //     return;
+    //   }
+
+    //   try {
+    //     const storage = getStorage();
+    //     const screenshotRef = storageRef(
+    //       storage,
+    //       `orders/${currentUser?.uid || 'guest'}/${Date.now()}_screenshot.jpg`,
+    //     );
+    //     await uploadBytes(screenshotRef, screenshot);
+    //     const screenshotUrl = await getDownloadURL(screenshotRef);
+    //     onPlaceOrder(product, 'easypaisa', { address, screenshotUrl });
+    //   } catch (error) {
+    //     console.error('Error uploading screenshot:', error);
+    //     alert('Failed to upload screenshot');
+    //   }
+    // };
+
+    const handlePlaceOrder = async () => {
+      if (!address) {
+        alert('Please enter your delivery address');
         return;
       }
-      onPlaceOrder(product, paymentMethod, paymentDetails);
-    };
+      if (!screenshot) {
+        alert('Please upload payment screenshot');
+        return;
+      }
 
+      try {
+        const base64Image = await compressImage(screenshot);
+        onPlaceOrder(product, 'easypaisa', {
+          address,
+          screenshotUrl: base64Image,
+        });
+      } catch (error) {
+        console.error('Error processing screenshot:', error);
+        alert('Failed to process screenshot');
+      }
+    };
     return (
       <div id="cart-page" className="page active">
         <div style={{ padding: '0', maxWidth: 780, margin: '0 auto' }}>
@@ -3113,326 +3809,75 @@ function AppShell() {
             </div>
           </div>
           <div className="ep-pay-box">
-            <h3>Select Payment Method</h3>
-            <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
-              {[
-                { id: 'easypaisa', label: '📱 EasyPaisa' },
-                { id: 'jazzcash', label: '💳 JazzCash' },
-                { id: 'bank_card', label: '💳 Bank Card' },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  className={`tab ${paymentMethod === m.id ? 'active' : ''}`}
-                  onClick={() => handlePaymentMethodChange(m.id)}
-                >
-                  {m.label}
-                </button>
-              ))}
+            <div
+              style={{
+                background: '#000',
+                borderRadius: 12,
+                padding: 20,
+                textAlign: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ fontSize: 14, color: '#aaa', marginBottom: 5 }}>
+                Send payment to (EasyPaisa / JazzCash)
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#ff6b35' }}>
+                Mubariz
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: '#22a06b' }}>
+                0318-9023001
+              </div>
+              <div style={{ fontSize: 16, color: '#ff6b35', marginTop: 10 }}>
+                Amount: Rs. {product.price.toLocaleString()}
+              </div>
             </div>
-            {paymentMethod === 'easypaisa' && (
-              <div
-                style={{
-                  background: '#1a1a27',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginTop: 15,
-                }}
+            <div style={{ marginBottom: 15 }}>
+              <label
+                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
               >
-                <h4 style={{ marginBottom: 15, color: '#22a06b' }}>
-                  EasyPaisa Payment
-                </h4>
-                <div
-                  style={{
-                    background: '#000',
-                    borderRadius: 12,
-                    padding: 15,
-                    marginBottom: 15,
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: '#888' }}>
-                    Send payment to
-                  </div>
-                  <div
-                    style={{ fontSize: 24, fontWeight: 700, color: '#ff6b35' }}
-                  >
-                    Mubariz
-                  </div>
-                  <div
-                    style={{ fontSize: 20, fontWeight: 600, color: '#22a06b' }}
-                  >
-                    0318-9023001
-                  </div>
-                  <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
-                    After payment, take screenshot
-                  </div>
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <input
-                    type="text"
-                    placeholder="Your Name"
-                    value={paymentDetails.name || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        name: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-                <div>
-                  <input
-                    type="tel"
-                    placeholder="EasyPaisa Number"
-                    value={paymentDetails.number || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        number: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    marginTop: 15,
-                    background: '#0f0f1a',
-                    borderRadius: 10,
-                    padding: 15,
-                    border: '1px dashed #ff6b35',
-                  }}
-                >
-                  <div style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>
-                    📸 Upload Payment Screenshot
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ width: '100%', color: '#fff' }}
-                    onChange={(e) => {
-                      if (e.target.files[0])
-                        alert('Screenshot selected: ' + e.target.files[0].name);
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            {paymentMethod === 'jazzcash' && (
-              <div
+                Complete Delivery Address
+              </label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Your complete address for delivery"
                 style={{
-                  background: '#1a1a27',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginTop: 15,
+                  width: '100%',
+                  background: '#0f0f1a',
+                  border: '1px solid #333',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  color: '#fff',
                 }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
               >
-                <h4 style={{ marginBottom: 15, color: '#ff6b35' }}>
-                  JazzCash Payment
-                </h4>
-                <div
+                Upload Payment Screenshot
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleScreenshotChange}
+                style={{ width: '100%', color: '#fff' }}
+              />
+              {screenshotPreview && (
+                <img
+                  src={screenshotPreview}
+                  alt="Preview"
                   style={{
-                    background: '#000',
-                    borderRadius: 12,
-                    padding: 15,
-                    marginBottom: 15,
-                    textAlign: 'center',
+                    marginTop: 10,
+                    width: '100%',
+                    maxHeight: 150,
+                    objectFit: 'cover',
+                    borderRadius: 8,
                   }}
-                >
-                  <div style={{ fontSize: 12, color: '#888' }}>
-                    Send payment to
-                  </div>
-                  <div
-                    style={{ fontSize: 24, fontWeight: 700, color: '#ff6b35' }}
-                  >
-                    Mubariz
-                  </div>
-                  <div
-                    style={{ fontSize: 20, fontWeight: 600, color: '#ff6b35' }}
-                  >
-                    0318-9023001
-                  </div>
-                  <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
-                    After payment, take screenshot
-                  </div>
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <input
-                    type="text"
-                    placeholder="Your Name"
-                    value={paymentDetails.name || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        name: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-                <div>
-                  <input
-                    type="tel"
-                    placeholder="JazzCash Number"
-                    value={paymentDetails.number || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        number: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    marginTop: 15,
-                    background: '#0f0f1a',
-                    borderRadius: 10,
-                    padding: 15,
-                    border: '1px dashed #ff6b35',
-                  }}
-                >
-                  <div style={{ fontSize: 13, color: '#aaa', marginBottom: 8 }}>
-                    📸 Upload Payment Screenshot
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ width: '100%', color: '#fff' }}
-                    onChange={(e) => {
-                      if (e.target.files[0])
-                        alert('Screenshot selected: ' + e.target.files[0].name);
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            {paymentMethod === 'bank_card' && (
-              <div
-                style={{
-                  background: '#1a1a27',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginTop: 15,
-                }}
-              >
-                <h4 style={{ marginBottom: 15, color: '#3b82f6' }}>
-                  Bank Card Payment
-                </h4>
-                <div style={{ marginBottom: 12 }}>
-                  <input
-                    type="text"
-                    placeholder="Cardholder Name"
-                    value={paymentDetails.name || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        name: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <input
-                    type="text"
-                    placeholder="Card Number (16 digits)"
-                    value={paymentDetails.cardNumber || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        cardNumber: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <input
-                    type="text"
-                    placeholder="MM/YY"
-                    value={paymentDetails.expiry || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        expiry: e.target.value,
-                      })
-                    }
-                    style={{
-                      flex: 1,
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                  <input
-                    type="password"
-                    placeholder="CVV"
-                    value={paymentDetails.cvv || ''}
-                    onChange={(e) =>
-                      setPaymentDetails({
-                        ...paymentDetails,
-                        cvv: e.target.value,
-                      })
-                    }
-                    style={{
-                      flex: 1,
-                      background: '#0f0f1a',
-                      border: '1px solid #333',
-                      borderRadius: 10,
-                      padding: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+                />
+              )}
+            </div>
           </div>
           <div className="refer-box">
             <h3>Invite & Earn</h3>
@@ -3458,7 +3903,7 @@ function AppShell() {
             <p
               style={{
                 marginTop: 10,
-                color: '#888',
+                color: '#aaa',
                 fontSize: '.78rem',
                 textAlign: 'center',
               }}
@@ -3471,6 +3916,7 @@ function AppShell() {
     );
   }
 
+  // LoginPage Component
   function LoginPage({
     onLoginComplete,
     currentUser,
@@ -3524,7 +3970,7 @@ function AppShell() {
         setStatus('🎉 Login ho gaya!');
         onLoginComplete?.();
       } catch {
-        setStatus('❌ Login failed. Number/password check karo.');
+        setStatus('❌ Login failed.');
       } finally {
         setLoading(false);
       }
@@ -3582,6 +4028,7 @@ function AppShell() {
     );
   }
 
+  // SignupPage Component
   function SignupPage({ onSignupComplete, setCurrentUser, loadUserStats }) {
     const navigate = useNavigate();
     const [phone, setPhone] = useState('');
