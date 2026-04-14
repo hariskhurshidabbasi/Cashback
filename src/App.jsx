@@ -3080,6 +3080,48 @@ function AppShell() {
         totalOrders: currentOrders + 1,
         lastOrderDate: Date.now(),
       });
+      // const referrerPhone = localStorage.getItem('cbRef');
+      // if (referrerPhone) {
+      //   const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
+      //   const referrerUidSnap = await get(
+      //     child(ref(rtdb), `usersByPhone/${referrerPhoneKey}`),
+      //   );
+      //   if (referrerUidSnap.exists()) {
+      //     const referrerUid = referrerUidSnap.val();
+      //     const referrerRef = ref(rtdb, `users/${referrerUid}`);
+      //     const referrerSnap = await get(referrerRef);
+      //     const currentReferBonus = referrerSnap.exists()
+      //       ? referrerSnap.val().referBonus || 0
+      //       : 0;
+      //     const referrerCashback = referrerSnap.exists()
+      //       ? referrerSnap.val().totalCashback || 0
+      //       : 0;
+      //     await update(ref(rtdb, `users/${referrerUid}`), {
+      //       referBonus: currentReferBonus + REFER_BONUS,
+      //       totalCashback: referrerCashback + REFER_BONUS,
+      //     });
+      //     await set(ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`), {
+      //       type: 'referral',
+      //       amount: REFER_BONUS,
+      //       referredUser: currentUser.uid,
+      //       description: `Referral bonus for referring user ${currentUser.phone}`,
+      //       timestamp: Date.now(),
+      //     });
+      //     await set(ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`), {
+      //       referredUser: currentUser.uid,
+      //       referredPhone: currentUser.phone,
+      //       timestamp: Date.now(),
+      //       status: 'completed',
+      //       bonusEarned: REFER_BONUS,
+      //     });
+      //   }
+      // }
+      // await loadUserStats(currentUser.uid);
+      // setLastOrderItems(orderItems);
+      // setLastOrderAmount(subtotal);
+      // setOrderCashbackTotal(cashbackTotal);
+      // setOrderModalOpen(true);
+      // Find this block in placeOrder and REPLACE it:
       const referrerPhone = localStorage.getItem('cbRef');
       if (referrerPhone) {
         const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
@@ -3088,39 +3130,60 @@ function AppShell() {
         );
         if (referrerUidSnap.exists()) {
           const referrerUid = referrerUidSnap.val();
-          const referrerRef = ref(rtdb, `users/${referrerUid}`);
-          const referrerSnap = await get(referrerRef);
-          const currentReferBonus = referrerSnap.exists()
-            ? referrerSnap.val().referBonus || 0
-            : 0;
-          const referrerCashback = referrerSnap.exists()
-            ? referrerSnap.val().totalCashback || 0
-            : 0;
-          await update(ref(rtdb, `users/${referrerUid}`), {
-            referBonus: currentReferBonus + REFER_BONUS,
-            totalCashback: referrerCashback + REFER_BONUS,
-          });
-          await set(ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`), {
-            type: 'referral',
-            amount: REFER_BONUS,
-            referredUser: currentUser.uid,
-            description: `Referral bonus for referring user ${currentUser.phone}`,
-            timestamp: Date.now(),
-          });
-          await set(ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`), {
-            referredUser: currentUser.uid,
-            referredPhone: currentUser.phone,
-            timestamp: Date.now(),
-            status: 'completed',
-            bonusEarned: REFER_BONUS,
-          });
+
+          // ✅ Check if this user already gave referral bonus before
+          const existingReferralSnap = await get(
+            ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`),
+          );
+          const alreadyGivenBonus =
+            existingReferralSnap.exists() &&
+            existingReferralSnap.val().status === 'completed';
+
+          if (!alreadyGivenBonus) {
+            const referrerRef = ref(rtdb, `users/${referrerUid}`);
+            const referrerSnap = await get(referrerRef);
+            const currentReferBonus = referrerSnap.exists()
+              ? referrerSnap.val().referBonus || 0
+              : 0;
+            const referrerCashback = referrerSnap.exists()
+              ? referrerSnap.val().totalCashback || 0
+              : 0;
+
+            // Give bonus to referrer
+            await update(ref(rtdb, `users/${referrerUid}`), {
+              referBonus: currentReferBonus + REFER_BONUS,
+              totalCashback: referrerCashback + REFER_BONUS,
+            });
+
+            // Add to referrer's cashback history
+            await set(
+              ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`),
+              {
+                type: 'referral',
+                amount: REFER_BONUS,
+                referredUser: currentUser.uid,
+                description: `Referral bonus for referring ${currentUser.phone}`,
+                timestamp: Date.now(),
+              },
+            );
+
+            // ✅ Update referral status to completed
+            await set(
+              ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`),
+              {
+                referredUser: currentUser.uid,
+                referredPhone: currentUser.phone,
+                timestamp: Date.now(),
+                status: 'completed',
+                bonusEarned: REFER_BONUS,
+              },
+            );
+
+            // Clear ref from localStorage so bonus isn't double-counted
+            localStorage.removeItem('cbRef');
+          }
         }
       }
-      await loadUserStats(currentUser.uid);
-      setLastOrderItems(orderItems);
-      setLastOrderAmount(subtotal);
-      setOrderCashbackTotal(cashbackTotal);
-      setOrderModalOpen(true);
     } catch (error) {
       console.error('Error placing order:', error);
       showToast('Order place karne mein error aa gaya');
@@ -3947,34 +4010,92 @@ function AppShell() {
         setLoading(true);
         const phoneKey = phoneDigitsForQuery(normalizedPhone);
         const uidSnap = await get(child(ref(rtdb), `usersByPhone/${phoneKey}`));
-        if (!uidSnap.exists()) {
-          setStatus('❌ Account nahi mila. Pehle signup karo.');
+        if (uidSnap.exists()) {
+          setStatus('❌ Ye number pehle se registered hai. Login karo.');
           return;
         }
-        const uid = uidSnap.val();
-        const userSnap = await get(child(ref(rtdb), `users/${uid}`));
-        const data = userSnap.exists() ? userSnap.val() : null;
-        if (!data) {
-          setStatus('❌ Account data nahi mila. Dobara signup karo.');
-          return;
+        const passwordHash = await bcrypt.hash(password, 10);
+        const uid = crypto.randomUUID();
+        await set(ref(rtdb, `users/${uid}`), {
+          phone: normalizedPhone,
+          passwordHash,
+          createdAt: Date.now(),
+          totalOrders: 0,
+          totalCashback: 0,
+          referBonus: 0,
+          totalInvested: 0,
+        });
+        await set(ref(rtdb, `usersByPhone/${phoneKey}`), uid);
+
+        // ✅ ADD THIS BLOCK — Save referral record on signup
+        const referrerPhone = localStorage.getItem('cbRef');
+        if (referrerPhone) {
+          const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
+          const referrerUidSnap = await get(
+            child(ref(rtdb), `usersByPhone/${referrerPhoneKey}`),
+          );
+          if (referrerUidSnap.exists()) {
+            const referrerUid = referrerUidSnap.val();
+            // Save pending referral — bonus will be given on first order
+            await set(ref(rtdb, `referrals/${referrerUid}/${uid}`), {
+              referredUser: uid,
+              referredPhone: normalizedPhone,
+              timestamp: Date.now(),
+              status: 'pending', // becomes 'completed' on first order
+              bonusEarned: 0,
+            });
+            // Save which referrer this new user came from
+            await set(ref(rtdb, `users/${uid}/referredBy`), referrerUid);
+          }
         }
-        const ok = await bcrypt.compare(password, data.passwordHash || '');
-        if (!ok) {
-          setStatus('❌ Password galat hai');
-          return;
-        }
+        // ✅ END OF REFERRAL BLOCK
+
         localStorage.setItem('cbUid', uid);
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
         await loadUserStats(uid);
-        setStatus('🎉 Login ho gaya!');
-        onLoginComplete?.();
-      } catch {
-        setStatus('❌ Login failed.');
+        setStatus('🎉 Account created!');
+        onSignupComplete?.();
+        navigate('/');
+      } catch (err) {
+        setStatus(err?.message || '❌ Signup failed.');
       } finally {
         setLoading(false);
       }
     };
+
+    // try {
+    //   setLoading(true);
+    //   const phoneKey = phoneDigitsForQuery(normalizedPhone);
+    //   const uidSnap = await get(child(ref(rtdb), `usersByPhone/${phoneKey}`));
+    //   if (!uidSnap.exists()) {
+    //     setStatus('❌ Account nahi mila. Pehle signup karo.');
+    //     return;
+    //   }
+    //   const uid = uidSnap.val();
+    //   const userSnap = await get(child(ref(rtdb), `users/${uid}`));
+    //   const data = userSnap.exists() ? userSnap.val() : null;
+    //   if (!data) {
+    //     setStatus('❌ Account data nahi mila. Dobara signup karo.');
+    //     return;
+    //   }
+    //   const ok = await bcrypt.compare(password, data.passwordHash || '');
+    //   if (!ok) {
+    //     setStatus('❌ Password galat hai');
+    //     return;
+    //   }
+    //   localStorage.setItem('cbUid', uid);
+    //   localStorage.setItem('cbPhone', normalizedPhone);
+    //   setCurrentUser({ uid, phone: normalizedPhone });
+    //   await loadUserStats(uid);
+    //   setStatus('🎉 Login ho gaya!');
+    //   onLoginComplete?.();
+    // } catch {
+    //   setStatus('❌ Login failed.');
+    // } finally {
+    //   setLoading(false);
+    // }
+
     return (
       <div id="login-page" className="page active">
         <div className="login-card">
