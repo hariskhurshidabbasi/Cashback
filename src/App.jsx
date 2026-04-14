@@ -8,7 +8,17 @@ import {
   useNavigate,
   useParams,
 } from 'react-router-dom';
-import { child, get, ref, set, push, update } from 'firebase/database';
+import {
+  child,
+  get,
+  ref,
+  set,
+  push,
+  update,
+  query,
+  orderByChild,
+  equalTo,
+} from 'firebase/database';
 import {
   getStorage,
   ref as storageRef,
@@ -565,86 +575,6 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
     }
   };
 
-  // const handleInvest = async () => {
-  //   if (!currentUser) {
-  //     showToast('Pehle login karo!');
-  //     navigate('/login');
-  //     return;
-  //   }
-  //   if (!selectedPlan) {
-  //     showToast('Please select an investment plan');
-  //     return;
-  //   }
-  //   if (!address) {
-  //     showToast('Please enter your address');
-  //     return;
-  //   }
-  //   if (!screenshot) {
-  //     showToast('Please upload payment screenshot');
-  //     return;
-  //   }
-
-  //   setLoading(true);
-  //   try {
-  //     const storage = getStorage();
-  //     const screenshotRef = storageRef(
-  //       storage,
-  //       `investments/${currentUser.uid}/${Date.now()}_screenshot.jpg`,
-  //     );
-  //     await uploadBytes(screenshotRef, screenshot);
-  //     const screenshotUrl = await getDownloadURL(screenshotRef);
-
-  //     const investmentId = push(
-  //       ref(rtdb, `investments/${currentUser.uid}`),
-  //     ).key;
-  //     await set(ref(rtdb, `investments/${currentUser.uid}/${investmentId}`), {
-  //       planId: selectedPlan.id,
-  //       planName: selectedPlan.name,
-  //       amount: selectedPlan.minAmount,
-  //       expectedReturn: selectedPlan.returnAmount,
-  //       address,
-  //       screenshotUrl,
-  //       timestamp: Date.now(),
-  //       status: 'pending',
-  //       expectedReturnDate:
-  //         Date.now() +
-  //         (selectedPlan.duration === '12 hours'
-  //           ? 12
-  //           : selectedPlan.duration === '24 hours'
-  //             ? 24
-  //             : selectedPlan.duration === '48 hours'
-  //               ? 48
-  //               : 72) *
-  //           60 *
-  //           60 *
-  //           1000,
-  //     });
-  //     await set(
-  //       ref(rtdb, `cashbackHistory/${currentUser.uid}/${investmentId}`),
-  //       {
-  //         type: 'investment',
-  //         amount: -selectedPlan.minAmount,
-  //         description: `Investment in ${selectedPlan.name} of Rs. ${selectedPlan.minAmount.toLocaleString()}`,
-  //         timestamp: Date.now(),
-  //         status: 'pending',
-  //       },
-  //     );
-  //     showToast(
-  //       `✅ Investment request submitted! You will receive Rs. ${selectedPlan.returnAmount.toLocaleString()} in ${selectedPlan.duration}`,
-  //     );
-  //     setSelectedPlan(null);
-  //     setAddress('');
-  //     setScreenshot(null);
-  //     setScreenshotPreview('');
-  //     if (onInvest) onInvest();
-  //   } catch (error) {
-  //     console.error('Error submitting investment:', error);
-  //     showToast('Investment submission failed');
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
   const handleInvest = async () => {
     if (!currentUser) {
       showToast('Pehle login karo!');
@@ -666,7 +596,6 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
 
     setLoading(true);
     try {
-      // Convert to base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Image = await compressImage(screenshot);
@@ -680,7 +609,7 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
           amount: selectedPlan.minAmount,
           expectedReturn: selectedPlan.returnAmount,
           address,
-          screenshotUrl: base64Image, // base64 stored directly
+          screenshotUrl: base64Image,
           timestamp: Date.now(),
           status: 'pending',
           expectedReturnDate:
@@ -2071,18 +2000,67 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
   );
 }
 
-// My Referrals Page
+// My Referrals Page - Enhanced with login tracking
 function MyReferralsPage({ currentUser }) {
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [liveTracking, setLiveTracking] = useState(false);
   const navigate = useNavigate();
+
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
       return;
     }
     fetchReferrals();
+
+    // Set up real-time listener for referral updates
+    const referralsRef = ref(rtdb, `referrals/${currentUser.uid}`);
+    const unsubscribe = () => {
+      // Cleanup function
+    };
+
+    // Using onValue for real-time updates
+    import('firebase/database')
+      .then(({ onValue }) => {
+        const ref = referralsRef;
+        const listener = onValue(ref, (snapshot) => {
+          if (snapshot.exists()) {
+            const referralsData = snapshot.val();
+            const referralsList = Object.entries(referralsData).map(
+              ([id, refData]) => ({
+                id,
+                ...refData,
+                date: new Date(refData.timestamp),
+                lastLoginAt: refData.lastLoginAt
+                  ? new Date(refData.lastLoginAt)
+                  : null,
+                orderDate: refData.orderDate
+                  ? new Date(refData.orderDate)
+                  : null,
+              }),
+            );
+            referralsList.sort((a, b) => b.timestamp - a.timestamp);
+            setReferrals(referralsList);
+            setLiveTracking(true);
+          } else {
+            setReferrals([]);
+          }
+          setLoading(false);
+        });
+
+        return () => listener();
+      })
+      .catch(() => {
+        // Fallback to single fetch if onValue is not available
+        setLoading(false);
+      });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [currentUser, navigate]);
+
   const fetchReferrals = async () => {
     if (!currentUser) return;
     setLoading(true);
@@ -2092,7 +2070,13 @@ function MyReferralsPage({ currentUser }) {
       if (snapshot.exists()) {
         const referralsData = snapshot.val();
         const referralsList = Object.entries(referralsData).map(
-          ([id, ref]) => ({ id, ...ref, date: new Date(ref.timestamp) }),
+          ([id, ref]) => ({
+            id,
+            ...ref,
+            date: new Date(ref.timestamp),
+            lastLoginAt: ref.lastLoginAt ? new Date(ref.lastLoginAt) : null,
+            orderDate: ref.orderDate ? new Date(ref.orderDate) : null,
+          }),
         );
         referralsList.sort((a, b) => b.timestamp - a.timestamp);
         setReferrals(referralsList);
@@ -2105,6 +2089,21 @@ function MyReferralsPage({ currentUser }) {
       setLoading(false);
     }
   };
+
+  const getReferralStatus = (referral) => {
+    if (referral.orderCompleted && referral.bonusEarned) {
+      return { text: 'Order Completed', color: '#22a06b', icon: '✅' };
+    } else if (referral.orderCompleted === false && referral.lastLoginAt) {
+      return { text: 'Logged In - No Order', color: '#cf7808', icon: '👤' };
+    } else if (referral.lastLoginAt) {
+      return { text: 'Account Created', color: '#3b82f6', icon: '📱' };
+    } else if (referral.orderDate) {
+      return { text: 'Order Placed', color: '#22a06b', icon: '📦' };
+    } else {
+      return { text: 'Pending Signup', color: '#aaa', icon: '⏳' };
+    }
+  };
+
   if (!currentUser)
     return (
       <div className="page active">
@@ -2127,13 +2126,116 @@ function MyReferralsPage({ currentUser }) {
         </div>
       </div>
     );
+
+  const completedReferrals = referrals.filter((r) => r.bonusEarned).length;
+  const pendingReferrals = referrals.filter(
+    (r) => !r.bonusEarned && r.referredUser,
+  ).length;
+  const totalBonus = referrals.reduce(
+    (sum, r) => sum + (r.bonusEarned || 0),
+    0,
+  );
+
   return (
     <div id="my-referrals-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 20px' }}>
         <div className="back-btn" onClick={() => navigate('/')}>
           ← Wapas Jao
         </div>
         <div className="cart-header">👥 My Referrals</div>
+
+        {/* Stats Cards */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 15,
+            marginBottom: 25,
+          }}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+              borderRadius: 16,
+              padding: 20,
+              textAlign: 'center',
+              border: '1px solid #ff6b35',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#ff6b35' }}>
+              {referrals.length}
+            </div>
+            <div style={{ fontSize: 13, color: '#aaa' }}>Total Referrals</div>
+          </div>
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+              borderRadius: 16,
+              padding: 20,
+              textAlign: 'center',
+              border: '1px solid #22a06b',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#22a06b' }}>
+              {completedReferrals}
+            </div>
+            <div style={{ fontSize: 13, color: '#aaa' }}>Completed Orders</div>
+          </div>
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+              borderRadius: 16,
+              padding: 20,
+              textAlign: 'center',
+              border: '1px solid #cf7808',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#cf7808' }}>
+              {pendingReferrals}
+            </div>
+            <div style={{ fontSize: 13, color: '#aaa' }}>
+              Pending Signup/Order
+            </div>
+          </div>
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+              borderRadius: 16,
+              padding: 20,
+              textAlign: 'center',
+              border: '1px solid #3b82f6',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>💰</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#3b82f6' }}>
+              Rs. {totalBonus.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 13, color: '#aaa' }}>
+              Total Bonus Earned
+            </div>
+          </div>
+        </div>
+
+        {liveTracking && (
+          <div
+            style={{
+              background: 'rgba(34, 160, 107, 0.1)',
+              borderRadius: 12,
+              padding: '10px 15px',
+              marginBottom: 20,
+              textAlign: 'center',
+              border: '1px solid #22a06b',
+            }}
+          >
+            <span style={{ color: '#22a06b', fontSize: 13 }}>
+              🟢 Live Tracking Active - Real-time updates enabled!
+            </span>
+          </div>
+        )}
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
             Loading referrals...
@@ -2181,7 +2283,25 @@ function MyReferralsPage({ currentUser }) {
                       color: '#ff6b35',
                     }}
                   >
-                    Date
+                    Signup Date
+                  </th>
+                  <th
+                    style={{
+                      padding: '15px',
+                      textAlign: 'left',
+                      color: '#ff6b35',
+                    }}
+                  >
+                    Last Login
+                  </th>
+                  <th
+                    style={{
+                      padding: '15px',
+                      textAlign: 'left',
+                      color: '#ff6b35',
+                    }}
+                  >
+                    Order Date
                   </th>
                   <th
                     style={{
@@ -2204,52 +2324,131 @@ function MyReferralsPage({ currentUser }) {
                 </tr>
               </thead>
               <tbody>
-                {referrals.map((ref) => (
-                  <tr key={ref.id} style={{ borderBottom: '1px solid #333' }}>
-                    <td style={{ padding: '15px', color: '#fff' }}>
-                      {ref.referredPhone ||
-                        ref.referredUser?.slice(0, 8) ||
-                        'Unknown'}
-                    </td>
-                    <td style={{ padding: '15px', color: '#aaa' }}>
-                      {ref.date.toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '15px' }}>
-                      <span
+                {referrals.map((ref) => {
+                  const status = getReferralStatus(ref);
+                  return (
+                    <tr key={ref.id} style={{ borderBottom: '1px solid #333' }}>
+                      <td style={{ padding: '15px', color: '#fff' }}>
+                        {ref.referredPhone ||
+                          ref.referredUser?.slice(0, 8) ||
+                          'Unknown'}
+                      </td>
+                      <td style={{ padding: '15px', color: '#aaa' }}>
+                        {ref.date.toLocaleDateString()}{' '}
+                        {ref.date.toLocaleTimeString()}
+                      </td>
+                      <td
                         style={{
-                          background:
-                            ref.status === 'completed'
-                              ? 'rgba(34,160,107,0.1)'
-                              : 'rgba(207,120,8,0.1)',
-                          color:
-                            ref.status === 'completed' ? '#22a06b' : '#cf7808',
-                          padding: '4px 12px',
-                          borderRadius: 20,
-                          fontSize: 12,
+                          padding: '15px',
+                          color: ref.lastLoginAt ? '#ff6b35' : '#aaa',
                         }}
                       >
-                        {ref.status === 'completed'
-                          ? 'Completed'
-                          : 'Pending Order'}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        padding: '15px',
-                        color: '#22a06b',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {ref.bonusEarned
-                        ? `+Rs. ${ref.bonusEarned.toLocaleString()}`
-                        : 'Pending'}
-                    </td>
-                  </tr>
-                ))}
+                        {ref.lastLoginAt
+                          ? `${ref.lastLoginAt.toLocaleDateString()} ${ref.lastLoginAt.toLocaleTimeString()}`
+                          : 'Not logged in yet'}
+                      </td>
+                      <td
+                        style={{
+                          padding: '15px',
+                          color: ref.orderDate ? '#22a06b' : '#aaa',
+                        }}
+                      >
+                        {ref.orderDate
+                          ? `${ref.orderDate.toLocaleDateString()} ${ref.orderDate.toLocaleTimeString()}`
+                          : 'No order yet'}
+                      </td>
+                      <td style={{ padding: '15px' }}>
+                        <span
+                          style={{
+                            background: status.bg || 'rgba(136,136,136,0.1)',
+                            color: status.color,
+                            padding: '4px 12px',
+                            borderRadius: 20,
+                            fontSize: 12,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          {status.icon} {status.text}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          padding: '15px',
+                          color: '#22a06b',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {ref.bonusEarned
+                          ? `+Rs. ${ref.bonusEarned.toLocaleString()}`
+                          : ref.orderCompleted === false && ref.lastLoginAt
+                            ? 'Pending Order'
+                            : ref.lastLoginAt
+                              ? 'Awaiting Order'
+                              : 'Pending Signup'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
+
+        {/* Explanation Section */}
+        <div
+          style={{
+            background: '#1a1a27',
+            borderRadius: 16,
+            padding: 20,
+            marginTop: 25,
+            border: '1px solid #333',
+          }}
+        >
+          <h3 style={{ color: '#ff6b35', marginBottom: 15 }}>
+            📌 How Referral Tracking Works
+          </h3>
+          <div
+            style={{ display: 'grid', gap: 10, fontSize: 13, color: '#ccc' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>1️⃣</span>
+              <span>
+                When someone signs up using your referral link, their account is
+                linked to you.
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>2️⃣</span>
+              <span>
+                You can see when they{' '}
+                <strong style={{ color: '#ff6b35' }}>login</strong> to their
+                account.
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>3️⃣</span>
+              <span>
+                You can see when they{' '}
+                <strong style={{ color: '#22a06b' }}>
+                  place their first order
+                </strong>
+                .
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>4️⃣</span>
+              <span>
+                Once they complete their first order, you receive{' '}
+                <strong style={{ color: '#22a06b' }}>
+                  Rs. {REFER_BONUS.toLocaleString()} bonus
+                </strong>
+                .
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2960,22 +3159,51 @@ function AppShell() {
     toastTimerRef.current = setTimeout(() => setToast(''), 3200);
   };
 
+  // Track referral from URL
   useEffect(() => {
     const sp = new URLSearchParams(location.search);
     const r = sp.get('ref');
     if (r) localStorage.setItem('cbRef', r);
   }, [location.search]);
+
   useEffect(() => {
     const uid = localStorage.getItem('cbUid');
     const phone = localStorage.getItem('cbPhone');
     if (uid && phone) {
       setCurrentUser({ uid, phone });
       loadUserStats(uid);
+      // Update last login time for referral tracking
+      updateLastLoginTime(uid, phone);
     } else {
       setCurrentUser(null);
       setLoadingStats(false);
     }
   }, []);
+
+  // Update last login time for referral tracking
+  const updateLastLoginTime = async (uid, phone) => {
+    try {
+      // Find who referred this user
+      const referralsQuery = query(
+        ref(rtdb, 'referrals'),
+        orderByChild('referredUser'),
+        equalTo(uid),
+      );
+      const snapshot = await get(referralsQuery);
+      if (snapshot.exists()) {
+        // Update the referral record with login time
+        snapshot.forEach((childSnapshot) => {
+          const referrerUid = childSnapshot.key;
+          const referralId = Object.keys(childSnapshot.val())[0];
+          update(ref(rtdb, `referrals/${referrerUid}/${uid}`), {
+            lastLoginAt: Date.now(),
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error updating last login time:', error);
+    }
+  };
 
   const loadUserStats = async (uid) => {
     setLoadingStats(true);
@@ -3015,11 +3243,13 @@ function AppShell() {
     showToast('Logout ho gaye!');
     navigate('/');
   };
+
   const referLink = useMemo(() => {
     if (!currentUser?.phone) return 'Login karo...';
     const digits = phoneDigitsForQuery(currentUser.phone);
     return `${window.location.origin}/?ref=${encodeURIComponent(digits)}`;
   }, [currentUser]);
+
   const copyText = async (text, okMsg) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -3028,6 +3258,7 @@ function AppShell() {
       showToast('Copy nahi ho saka');
     }
   };
+
   const copyReferLink = () => {
     if (!currentUser) {
       showToast('Pehle login karo!');
@@ -3070,6 +3301,8 @@ function AppShell() {
         description: `Cashback from order worth Rs. ${subtotal.toLocaleString()}`,
         timestamp: Date.now(),
       });
+
+      // Update user stats
       const userRef = ref(rtdb, `users/${currentUser.uid}`);
       const userSnap = await get(userRef);
       const currentStats = userSnap.exists() ? userSnap.val() : {};
@@ -3080,48 +3313,29 @@ function AppShell() {
         totalOrders: currentOrders + 1,
         lastOrderDate: Date.now(),
       });
-      // const referrerPhone = localStorage.getItem('cbRef');
-      // if (referrerPhone) {
-      //   const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
-      //   const referrerUidSnap = await get(
-      //     child(ref(rtdb), `usersByPhone/${referrerPhoneKey}`),
-      //   );
-      //   if (referrerUidSnap.exists()) {
-      //     const referrerUid = referrerUidSnap.val();
-      //     const referrerRef = ref(rtdb, `users/${referrerUid}`);
-      //     const referrerSnap = await get(referrerRef);
-      //     const currentReferBonus = referrerSnap.exists()
-      //       ? referrerSnap.val().referBonus || 0
-      //       : 0;
-      //     const referrerCashback = referrerSnap.exists()
-      //       ? referrerSnap.val().totalCashback || 0
-      //       : 0;
-      //     await update(ref(rtdb, `users/${referrerUid}`), {
-      //       referBonus: currentReferBonus + REFER_BONUS,
-      //       totalCashback: referrerCashback + REFER_BONUS,
-      //     });
-      //     await set(ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`), {
-      //       type: 'referral',
-      //       amount: REFER_BONUS,
-      //       referredUser: currentUser.uid,
-      //       description: `Referral bonus for referring user ${currentUser.phone}`,
-      //       timestamp: Date.now(),
-      //     });
-      //     await set(ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`), {
-      //       referredUser: currentUser.uid,
-      //       referredPhone: currentUser.phone,
-      //       timestamp: Date.now(),
-      //       status: 'completed',
-      //       bonusEarned: REFER_BONUS,
-      //     });
-      //   }
-      // }
-      // await loadUserStats(currentUser.uid);
-      // setLastOrderItems(orderItems);
-      // setLastOrderAmount(subtotal);
-      // setOrderCashbackTotal(cashbackTotal);
-      // setOrderModalOpen(true);
-      // Find this block in placeOrder and REPLACE it:
+
+      // Update referral record with order info
+      try {
+        const referralsQuery = query(
+          ref(rtdb, 'referrals'),
+          orderByChild('referredUser'),
+          equalTo(currentUser.uid),
+        );
+        const refSnapshot = await get(referralsQuery);
+        if (refSnapshot.exists()) {
+          refSnapshot.forEach((childSnapshot) => {
+            const referrerUid = childSnapshot.key;
+            update(ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`), {
+              orderDate: Date.now(),
+              orderCompleted: true,
+            });
+          });
+        }
+      } catch (err) {
+        console.error('Error updating referral order:', err);
+      }
+
+      // Process referral bonus
       const referrerPhone = localStorage.getItem('cbRef');
       if (referrerPhone) {
         const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
@@ -3130,60 +3344,42 @@ function AppShell() {
         );
         if (referrerUidSnap.exists()) {
           const referrerUid = referrerUidSnap.val();
-
-          // ✅ Check if this user already gave referral bonus before
-          const existingReferralSnap = await get(
-            ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`),
-          );
-          const alreadyGivenBonus =
-            existingReferralSnap.exists() &&
-            existingReferralSnap.val().status === 'completed';
-
-          if (!alreadyGivenBonus) {
-            const referrerRef = ref(rtdb, `users/${referrerUid}`);
-            const referrerSnap = await get(referrerRef);
-            const currentReferBonus = referrerSnap.exists()
-              ? referrerSnap.val().referBonus || 0
-              : 0;
-            const referrerCashback = referrerSnap.exists()
-              ? referrerSnap.val().totalCashback || 0
-              : 0;
-
-            // Give bonus to referrer
-            await update(ref(rtdb, `users/${referrerUid}`), {
-              referBonus: currentReferBonus + REFER_BONUS,
-              totalCashback: referrerCashback + REFER_BONUS,
-            });
-
-            // Add to referrer's cashback history
-            await set(
-              ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`),
-              {
-                type: 'referral',
-                amount: REFER_BONUS,
-                referredUser: currentUser.uid,
-                description: `Referral bonus for referring ${currentUser.phone}`,
-                timestamp: Date.now(),
-              },
-            );
-
-            // ✅ Update referral status to completed
-            await set(
-              ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`),
-              {
-                referredUser: currentUser.uid,
-                referredPhone: currentUser.phone,
-                timestamp: Date.now(),
-                status: 'completed',
-                bonusEarned: REFER_BONUS,
-              },
-            );
-
-            // Clear ref from localStorage so bonus isn't double-counted
-            localStorage.removeItem('cbRef');
-          }
+          const referrerRef = ref(rtdb, `users/${referrerUid}`);
+          const referrerSnap = await get(referrerRef);
+          const currentReferBonus = referrerSnap.exists()
+            ? referrerSnap.val().referBonus || 0
+            : 0;
+          const referrerCashback = referrerSnap.exists()
+            ? referrerSnap.val().totalCashback || 0
+            : 0;
+          await update(ref(rtdb, `users/${referrerUid}`), {
+            referBonus: currentReferBonus + REFER_BONUS,
+            totalCashback: referrerCashback + REFER_BONUS,
+          });
+          await set(ref(rtdb, `cashbackHistory/${referrerUid}/${Date.now()}`), {
+            type: 'referral',
+            amount: REFER_BONUS,
+            referredUser: currentUser.uid,
+            description: `Referral bonus for referring user ${currentUser.phone}`,
+            timestamp: Date.now(),
+          });
+          await set(ref(rtdb, `referrals/${referrerUid}/${currentUser.uid}`), {
+            referredUser: currentUser.uid,
+            referredPhone: currentUser.phone,
+            timestamp: Date.now(),
+            lastLoginAt: Date.now(),
+            orderDate: Date.now(),
+            orderCompleted: true,
+            status: 'completed',
+            bonusEarned: REFER_BONUS,
+          });
         }
       }
+      await loadUserStats(currentUser.uid);
+      setLastOrderItems(orderItems);
+      setLastOrderAmount(subtotal);
+      setOrderCashbackTotal(cashbackTotal);
+      setOrderModalOpen(true);
     } catch (error) {
       console.error('Error placing order:', error);
       showToast('Order place karne mein error aa gaya');
@@ -3194,6 +3390,7 @@ function AppShell() {
     setOrderModalOpen(false);
     navigate('/');
   };
+
   const shareWhatsApp = () => {
     const items = lastOrderItems
       .map(
@@ -3763,31 +3960,6 @@ function AppShell() {
       }
     };
 
-    // const handlePlaceOrder = async () => {
-    //   if (!address) {
-    //     alert('Please enter your delivery address');
-    //     return;
-    //   }
-    //   if (!screenshot) {
-    //     alert('Please upload payment screenshot');
-    //     return;
-    //   }
-
-    //   try {
-    //     const storage = getStorage();
-    //     const screenshotRef = storageRef(
-    //       storage,
-    //       `orders/${currentUser?.uid || 'guest'}/${Date.now()}_screenshot.jpg`,
-    //     );
-    //     await uploadBytes(screenshotRef, screenshot);
-    //     const screenshotUrl = await getDownloadURL(screenshotRef);
-    //     onPlaceOrder(product, 'easypaisa', { address, screenshotUrl });
-    //   } catch (error) {
-    //     console.error('Error uploading screenshot:', error);
-    //     alert('Failed to upload screenshot');
-    //   }
-    // };
-
     const handlePlaceOrder = async () => {
       if (!address) {
         alert('Please enter your delivery address');
@@ -3991,9 +4163,11 @@ function AppShell() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
+
     useEffect(() => {
       if (currentUser) navigate('/');
     }, [currentUser]);
+
     const submit = async (e) => {
       e.preventDefault();
       setStatus('');
@@ -4010,92 +4184,55 @@ function AppShell() {
         setLoading(true);
         const phoneKey = phoneDigitsForQuery(normalizedPhone);
         const uidSnap = await get(child(ref(rtdb), `usersByPhone/${phoneKey}`));
-        if (uidSnap.exists()) {
-          setStatus('❌ Ye number pehle se registered hai. Login karo.');
+        if (!uidSnap.exists()) {
+          setStatus('❌ Account nahi mila. Pehle signup karo.');
           return;
         }
-        const passwordHash = await bcrypt.hash(password, 10);
-        const uid = crypto.randomUUID();
-        await set(ref(rtdb, `users/${uid}`), {
-          phone: normalizedPhone,
-          passwordHash,
-          createdAt: Date.now(),
-          totalOrders: 0,
-          totalCashback: 0,
-          referBonus: 0,
-          totalInvested: 0,
-        });
-        await set(ref(rtdb, `usersByPhone/${phoneKey}`), uid);
-
-        // ✅ ADD THIS BLOCK — Save referral record on signup
-        const referrerPhone = localStorage.getItem('cbRef');
-        if (referrerPhone) {
-          const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
-          const referrerUidSnap = await get(
-            child(ref(rtdb), `usersByPhone/${referrerPhoneKey}`),
-          );
-          if (referrerUidSnap.exists()) {
-            const referrerUid = referrerUidSnap.val();
-            // Save pending referral — bonus will be given on first order
-            await set(ref(rtdb, `referrals/${referrerUid}/${uid}`), {
-              referredUser: uid,
-              referredPhone: normalizedPhone,
-              timestamp: Date.now(),
-              status: 'pending', // becomes 'completed' on first order
-              bonusEarned: 0,
-            });
-            // Save which referrer this new user came from
-            await set(ref(rtdb, `users/${uid}/referredBy`), referrerUid);
-          }
+        const uid = uidSnap.val();
+        const userSnap = await get(child(ref(rtdb), `users/${uid}`));
+        const data = userSnap.exists() ? userSnap.val() : null;
+        if (!data) {
+          setStatus('❌ Account data nahi mila. Dobara signup karo.');
+          return;
         }
-        // ✅ END OF REFERRAL BLOCK
+        const ok = await bcrypt.compare(password, data.passwordHash || '');
+        if (!ok) {
+          setStatus('❌ Password galat hai');
+          return;
+        }
+
+        // Update last login time for referral tracking
+        try {
+          const referralsQuery = query(
+            ref(rtdb, 'referrals'),
+            orderByChild('referredUser'),
+            equalTo(uid),
+          );
+          const refSnapshot = await get(referralsQuery);
+          if (refSnapshot.exists()) {
+            refSnapshot.forEach((childSnapshot) => {
+              const referrerUid = childSnapshot.key;
+              update(ref(rtdb, `referrals/${referrerUid}/${uid}`), {
+                lastLoginAt: Date.now(),
+              });
+            });
+          }
+        } catch (err) {
+          console.error('Error updating login time:', err);
+        }
 
         localStorage.setItem('cbUid', uid);
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
         await loadUserStats(uid);
-        setStatus('🎉 Account created!');
-        onSignupComplete?.();
-        navigate('/');
-      } catch (err) {
-        setStatus(err?.message || '❌ Signup failed.');
+        setStatus('🎉 Login ho gaya!');
+        onLoginComplete?.();
+      } catch {
+        setStatus('❌ Login failed.');
       } finally {
         setLoading(false);
       }
     };
-
-    // try {
-    //   setLoading(true);
-    //   const phoneKey = phoneDigitsForQuery(normalizedPhone);
-    //   const uidSnap = await get(child(ref(rtdb), `usersByPhone/${phoneKey}`));
-    //   if (!uidSnap.exists()) {
-    //     setStatus('❌ Account nahi mila. Pehle signup karo.');
-    //     return;
-    //   }
-    //   const uid = uidSnap.val();
-    //   const userSnap = await get(child(ref(rtdb), `users/${uid}`));
-    //   const data = userSnap.exists() ? userSnap.val() : null;
-    //   if (!data) {
-    //     setStatus('❌ Account data nahi mila. Dobara signup karo.');
-    //     return;
-    //   }
-    //   const ok = await bcrypt.compare(password, data.passwordHash || '');
-    //   if (!ok) {
-    //     setStatus('❌ Password galat hai');
-    //     return;
-    //   }
-    //   localStorage.setItem('cbUid', uid);
-    //   localStorage.setItem('cbPhone', normalizedPhone);
-    //   setCurrentUser({ uid, phone: normalizedPhone });
-    //   await loadUserStats(uid);
-    //   setStatus('🎉 Login ho gaya!');
-    //   onLoginComplete?.();
-    // } catch {
-    //   setStatus('❌ Login failed.');
-    // } finally {
-    //   setLoading(false);
-    // }
-
     return (
       <div id="login-page" className="page active">
         <div className="login-card">
@@ -4157,6 +4294,7 @@ function AppShell() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
+
     const submit = async (e) => {
       e.preventDefault();
       setStatus('');
@@ -4193,6 +4331,27 @@ function AppShell() {
           totalInvested: 0,
         });
         await set(ref(rtdb, `usersByPhone/${phoneKey}`), uid);
+
+        // Track referral on signup
+        const referrerPhone = localStorage.getItem('cbRef');
+        if (referrerPhone) {
+          const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
+          const referrerUidSnap = await get(
+            child(ref(rtdb), `usersByPhone/${referrerPhoneKey}`),
+          );
+          if (referrerUidSnap.exists()) {
+            const referrerUid = referrerUidSnap.val();
+            await set(ref(rtdb, `referrals/${referrerUid}/${uid}`), {
+              referredUser: uid,
+              referredPhone: normalizedPhone,
+              timestamp: Date.now(),
+              status: 'pending',
+              bonusEarned: 0,
+              orderCompleted: false,
+            });
+          }
+        }
+
         localStorage.setItem('cbUid', uid);
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
