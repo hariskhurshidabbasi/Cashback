@@ -26,6 +26,7 @@ import {
   getDownloadURL,
 } from 'firebase/storage';
 import bcrypt from 'bcryptjs';
+import emailjs from '@emailjs/browser';
 import { rtdb } from './firebase';
 import { normalizePakistanPhone, phoneDigitsForQuery } from './lib/phoneAuth';
 import './styles/cashback.css';
@@ -40,46 +41,53 @@ const REFER_BONUS = 1500;
 const INVESTMENT_RETURN_PERCENTAGE = 12;
 const MIN_WITHDRAWAL_AMOUNT = 500;
 
-// Investment Plans
+// Updated Payment Numbers
+const EASYPAISA_NUMBER = '03480954733';
+const JAZZCASH_NUMBER = '03135259363';
+const SUPPORT_NUMBER = '03340397691';
+
+// EmailJS Configuration
+const EMAILJS_SERVICE_ID = 'service_7h2936w';
+const EMAILJS_TEMPLATE_ID = 'template_t6mxgmw';
+const EMAILJS_PUBLIC_KEY = 'OPt_6PEWJLbXNmfFY';
+const ADMIN_EMAIL = 'abbasihariskhurshid@gmail.com';
+
+// Investment Plans - Updated with percentage only
 const INVESTMENT_PLANS = [
   {
     id: 1,
     name: 'Basic Plan',
     minAmount: 500,
-    returnAmount: 700,
+    returnPercentage: 20,
     duration: '12 hours',
-    returnPercentage: 40,
   },
   {
     id: 2,
     name: 'Standard Plan',
     minAmount: 1000,
-    returnAmount: 1500,
+    returnPercentage: 25,
     duration: '24 hours',
-    returnPercentage: 50,
   },
   {
     id: 3,
     name: 'Premium Plan',
     minAmount: 2000,
-    returnAmount: 3200,
+    returnPercentage: 30,
     duration: '48 hours',
-    returnPercentage: 60,
   },
   {
     id: 4,
     name: 'Gold Plan',
-    minAmount: 5000,
-    returnAmount: 8500,
+    minAmount: 4000,
+    returnPercentage: 35,
     duration: '72 hours',
-    returnPercentage: 70,
   },
 ];
 
 const calculateCashback = (price) =>
   Math.round((price * BASE_CASHBACK_PERCENTAGE) / 100);
-const calculateInvestmentReturn = (amount) =>
-  Math.round((amount * INVESTMENT_RETURN_PERCENTAGE) / 100);
+const calculateInvestmentReturn = (amount, percentage) =>
+  Math.round((amount * percentage) / 100);
 const calculateDailyProfit = (
   price,
   cycleDays = 300,
@@ -264,7 +272,7 @@ const PRODUCTS = [
   ...p,
   cashback: calculateCashback(p.price),
   profitDetails: calculateDailyProfit(p.price, p.cycleDays, p.returnPercentage),
-  desc: `Assalam o Alaikum! ${p.description} Is product ko buy karne par aapko Rs. ${calculateCashback(p.price).toLocaleString()} cashback milega (24 ghante ke andar). Agar aap kisi dost ko refer karte hain, to aapko ${REFER_BONUS} extra cashback milega.`,
+  desc: `Hello! ${p.description} When you buy this product, you will get Rs. ${calculateCashback(p.price).toLocaleString()} cashback (within 24 hours). If you refer a friend, you will get ${REFER_BONUS} extra cashback.`,
 }));
 
 const compressImage = (file, maxWidth = 800, quality = 0.6) => {
@@ -288,6 +296,50 @@ const compressImage = (file, maxWidth = 800, quality = 0.6) => {
 };
 
 const PAYMENT_METHODS = { EASYPAISA: 'easypaisa', JAZZCASH: 'jazzcash' };
+
+// Initialize EmailJS
+emailjs.init(EMAILJS_PUBLIC_KEY);
+
+// Send email notification function
+const sendWithdrawalEmail = async (
+  userPhone,
+  amount,
+  paymentMethod,
+  paymentDetails,
+) => {
+  try {
+    const methodName =
+      paymentMethod === 'easypaisa'
+        ? 'EasyPaisa'
+        : paymentMethod === 'jazzcash'
+          ? 'JazzCash'
+          : 'Bank Transfer';
+
+    let detailsText = '';
+    if (paymentMethod === 'easypaisa') {
+      detailsText = `EasyPaisa Number: ${paymentDetails.number}\nAccount Holder: ${paymentDetails.name}`;
+    } else if (paymentMethod === 'jazzcash') {
+      detailsText = `JazzCash Number: ${paymentDetails.number}\nAccount Holder: ${paymentDetails.name}`;
+    } else {
+      detailsText = `Bank: ${paymentDetails.bank}\nAccount Number: ${paymentDetails.accountNumber}\nAccount Title: ${paymentDetails.accountTitle}`;
+    }
+
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_name: 'Admin',
+      to_email: ADMIN_EMAIL,
+      from_name: 'Cashback Store',
+      reply_to: ADMIN_EMAIL,
+      subject: `New Withdrawal Request - Rs. ${amount.toLocaleString()}`,
+      message: `NEW WITHDRAWAL REQUEST\n\nUser Phone: ${userPhone}\nAmount: Rs. ${amount.toLocaleString()}\nPayment Method: ${methodName}\n\nPayment Details:\n${detailsText}\n\nTime: ${new Date().toLocaleString()}\n\nPlease process this withdrawal request.`,
+    });
+
+    console.log('Email sent successfully');
+    return true;
+  } catch (error) {
+    console.error('EmailJS error:', error);
+    return false;
+  }
+};
 
 // Profile Dropdown Component
 function ProfileDropdown({
@@ -316,48 +368,51 @@ function ProfileDropdown({
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen((v) => !v)}
+        className="profile-btn"
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: '8px',
           background: '#2a2a3a',
           border: '1px solid rgba(255,255,255,0.2)',
           color: '#fff',
           padding: '7px 13px',
-          borderRadius: 9,
+          borderRadius: '9px',
           cursor: 'pointer',
-          fontSize: 13,
+          fontSize: '13px',
         }}
       >
         <div
           style={{
-            width: 28,
-            height: 28,
+            width: '28px',
+            height: '28px',
             borderRadius: '50%',
             background: '#ff6b35',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 600,
-            fontSize: 11,
+            fontSize: '11px',
             color: '#fff',
           }}
         >
           {initials}
         </div>
-        <span>📱 {shortPhone}</span>
-        <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+        <span className="profile-phone">📱 {shortPhone}</span>
+        <span style={{ fontSize: '9px', opacity: 0.7 }}>▼</span>
       </button>
       {open && (
         <div
+          className="profile-dropdown"
           style={{
             position: 'absolute',
             top: 'calc(100% + 8px)',
             right: 0,
             background: '#ffffff',
             border: '0.5px solid #e0e0e0',
-            borderRadius: 14,
-            width: 280,
+            borderRadius: '14px',
+            width: '280px',
+            maxWidth: 'calc(100vw - 20px)',
             zIndex: 999,
             boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
             overflow: 'hidden',
@@ -369,41 +424,44 @@ function ProfileDropdown({
               padding: '14px 16px',
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: '12px',
             }}
           >
             <div
               style={{
-                width: 42,
-                height: 42,
+                width: '42px',
+                height: '42px',
                 borderRadius: '50%',
                 background: '#ff6b35',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
-                fontSize: 16,
+                fontSize: '16px',
                 color: '#fff',
               }}
             >
               {initials}
             </div>
             <div>
-              <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>
-                Mera Account
+              <div style={{ color: '#fff', fontWeight: 500, fontSize: '14px' }}>
+                My Account
               </div>
               <div
                 style={{
                   color: 'rgba(255,255,255,0.55)',
-                  fontSize: 12,
-                  marginTop: 2,
+                  fontSize: '12px',
+                  marginTop: '2px',
                 }}
               >
                 {currentUser?.phone}
               </div>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <div
+            className="stats-grid"
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}
+          >
             <StatBox
               label="Orders"
               value={loadingStats ? '...' : userStats?.totalOrders || 0}
@@ -449,7 +507,7 @@ function ProfileDropdown({
           />
           <MenuItem
             icon="📦"
-            label="Meri Orders"
+            label="My Orders"
             onClick={() => {
               setOpen(false);
               onNavigate('/orders');
@@ -465,7 +523,7 @@ function ProfileDropdown({
           />
           <MenuItem
             icon="🔗"
-            label="Dost Ko Refer Karo"
+            label="Refer a Friend"
             onClick={() => {
               setOpen(false);
               onNavigate('/refer');
@@ -477,6 +535,14 @@ function ProfileDropdown({
             onClick={() => {
               setOpen(false);
               onNavigate('/my-referrals');
+            }}
+          />
+          <MenuItem
+            icon="📞"
+            label="Contact Us"
+            onClick={() => {
+              setOpen(false);
+              onNavigate('/contact');
             }}
           />
           <Divider />
@@ -506,7 +572,7 @@ function StatBox({ label, value, color, border }) {
     >
       <div
         style={{
-          fontSize: 13,
+          fontSize: '13px',
           fontWeight: 500,
           color: color || '#000',
           lineHeight: 1.2,
@@ -514,7 +580,9 @@ function StatBox({ label, value, color, border }) {
       >
         {value}
       </div>
-      <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{label}</div>
+      <div style={{ fontSize: '11px', color: '#666', marginTop: '3px' }}>
+        {label}
+      </div>
     </div>
   );
 }
@@ -530,15 +598,15 @@ function MenuItem({ icon, label, onClick, danger }) {
         padding: '10px 16px',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: '10px',
         cursor: 'pointer',
-        fontSize: 13,
+        fontSize: '13px',
         color: danger ? '#c0392b' : '#000',
         background: hover ? '#f5f5f5' : 'transparent',
         transition: 'background 0.15s',
       }}
     >
-      <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>
+      <span style={{ fontSize: '14px', width: '20px', textAlign: 'center' }}>
         {icon}
       </span>
       {label}
@@ -550,14 +618,14 @@ function Divider() {
   return <div style={{ height: '0.5px', background: '#eee' }} />;
 }
 
-// Investment Plans Page Component
+// Investment Plans Page Component - Updated with percentage only
 function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
   const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [screenshot, setScreenshot] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState('');
   const [loading, setLoading] = useState(false);
-  const [address, setAddress] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('easypaisa');
 
   const handlePlanSelect = (plan) => {
     setSelectedPlan(plan);
@@ -577,16 +645,12 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
 
   const handleInvest = async () => {
     if (!currentUser) {
-      showToast('Pehle login karo!');
+      showToast('Please login first!');
       navigate('/login');
       return;
     }
     if (!selectedPlan) {
       showToast('Please select an investment plan');
-      return;
-    }
-    if (!address) {
-      showToast('Please enter your address');
       return;
     }
     if (!screenshot) {
@@ -599,6 +663,10 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Image = await compressImage(screenshot);
+        const expectedReturn = calculateInvestmentReturn(
+          selectedPlan.minAmount,
+          selectedPlan.returnPercentage,
+        );
 
         const investmentId = push(
           ref(rtdb, `investments/${currentUser.uid}`),
@@ -607,11 +675,11 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
           planId: selectedPlan.id,
           planName: selectedPlan.name,
           amount: selectedPlan.minAmount,
-          expectedReturn: selectedPlan.returnAmount,
-          address,
+          expectedReturn: expectedReturn,
+          returnPercentage: selectedPlan.returnPercentage,
+          paymentMethod,
           screenshotUrl: base64Image,
           timestamp: Date.now(),
-          status: 'pending',
           expectedReturnDate:
             Date.now() +
             (selectedPlan.duration === '12 hours'
@@ -631,20 +699,19 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
           {
             type: 'investment',
             amount: -selectedPlan.minAmount,
-            description: `Investment in ${selectedPlan.name} of Rs. ${selectedPlan.minAmount.toLocaleString()}`,
+            description: `Investment in ${selectedPlan.name} of Rs. ${selectedPlan.minAmount.toLocaleString()} via ${paymentMethod === 'easypaisa' ? 'EasyPaisa' : 'JazzCash'}`,
             timestamp: Date.now(),
-            status: 'pending',
           },
         );
 
         showToast(
-          `✅ Investment submitted! You will receive Rs. ${selectedPlan.returnAmount.toLocaleString()} in ${selectedPlan.duration}`,
+          `✅ Investment submitted! You will receive ${selectedPlan.returnPercentage}% return (Rs. ${expectedReturn.toLocaleString()}) in ${selectedPlan.duration}`,
         );
         setSelectedPlan(null);
-        setAddress('');
         setScreenshot(null);
         setScreenshotPreview('');
         setLoading(false);
+        if (onInvest) onInvest();
       };
       reader.readAsDataURL(screenshot);
     } catch (error) {
@@ -653,32 +720,38 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
       setLoading(false);
     }
   };
+
   return (
     <div id="investment-plans-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
         <div className="cart-header">💰 Investment Plans</div>
         <div
+          className="investment-plans-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 20,
-            marginBottom: 30,
+            gap: '20px',
+            marginBottom: '30px',
           }}
         >
           {INVESTMENT_PLANS.map((plan) => (
             <div
               key={plan.id}
               onClick={() => handlePlanSelect(plan)}
+              className="investment-plan-card"
               style={{
                 background:
                   selectedPlan?.id === plan.id
                     ? 'linear-gradient(135deg, #ff6b35, #ff8c5a)'
                     : '#1a1a27',
-                borderRadius: 20,
-                padding: 20,
+                borderRadius: '20px',
+                padding: '20px',
                 textAlign: 'center',
                 cursor: 'pointer',
                 border:
@@ -688,25 +761,36 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
                 transition: 'all 0.3s',
               }}
             >
-              <div style={{ fontSize: 32, marginBottom: 10 }}>📈</div>
-              <h3 style={{ color: '#fff', marginBottom: 10 }}>{plan.name}</h3>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>📈</div>
+              <h3
+                style={{
+                  color: '#fff',
+                  marginBottom: '10px',
+                  fontSize: 'clamp(16px, 4vw, 20px)',
+                }}
+              >
+                {plan.name}
+              </h3>
               <div
                 style={{
-                  fontSize: 24,
+                  fontSize: 'clamp(20px, 5vw, 24px)',
                   fontWeight: 700,
                   color: '#22a06b',
-                  marginBottom: 5,
+                  marginBottom: '5px',
                 }}
               >
                 Rs. {plan.minAmount.toLocaleString()}
               </div>
-              <div style={{ fontSize: 14, color: '#ccc', marginBottom: 5 }}>
-                Get Rs. {plan.returnAmount.toLocaleString()}
+              <div
+                style={{
+                  fontSize: '14px',
+                  color: '#ff6b35',
+                  marginBottom: '5px',
+                }}
+              >
+                {plan.returnPercentage}% Return
               </div>
-              <div style={{ fontSize: 12, color: '#ff6b35', marginBottom: 5 }}>
-                +{plan.returnPercentage}% Return
-              </div>
-              <div style={{ fontSize: 12, color: '#aaa' }}>
+              <div style={{ fontSize: '12px', color: '#aaa' }}>
                 Duration: {plan.duration}
               </div>
             </div>
@@ -714,68 +798,123 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
         </div>
         {selectedPlan && (
           <div
+            className="investment-form"
             style={{
               background: '#1a1a27',
-              borderRadius: 24,
-              padding: 30,
-              marginBottom: 30,
+              borderRadius: '24px',
+              padding: 'clamp(20px, 5vw, 30px)',
+              marginBottom: '30px',
             }}
           >
             <h3
               style={{
                 color: '#ff6b35',
-                marginBottom: 20,
+                marginBottom: '20px',
                 textAlign: 'center',
+                fontSize: 'clamp(18px, 4vw, 22px)',
               }}
             >
               Invest in {selectedPlan.name}
             </h3>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label
+                style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}
+              >
+                Select Payment Method
+              </label>
+              <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setPaymentMethod('easypaisa')}
+                  className="payment-method-btn"
+                  style={{
+                    flex: 1,
+                    minWidth: '120px',
+                    background:
+                      paymentMethod === 'easypaisa' ? '#22a06b' : '#0f0f1a',
+                    border:
+                      paymentMethod === 'easypaisa' ? 'none' : '1px solid #333',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  📱 EasyPaisa
+                </button>
+                <button
+                  onClick={() => setPaymentMethod('jazzcash')}
+                  className="payment-method-btn"
+                  style={{
+                    flex: 1,
+                    minWidth: '120px',
+                    background:
+                      paymentMethod === 'jazzcash' ? '#ff6b35' : '#0f0f1a',
+                    border:
+                      paymentMethod === 'jazzcash' ? 'none' : '1px solid #333',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  💳 JazzCash
+                </button>
+              </div>
+            </div>
+
             <div
+              className="payment-details-box"
               style={{
                 background: '#000',
-                borderRadius: 12,
-                padding: 20,
+                borderRadius: '12px',
+                padding: '20px',
                 textAlign: 'center',
-                marginBottom: 20,
+                marginBottom: '20px',
               }}
             >
-              <div style={{ fontSize: 14, color: '#aaa', marginBottom: 5 }}>
-                Send payment to (EasyPaisa / JazzCash)
+              <div
+                style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
+              >
+                Send payment to{' '}
+                {paymentMethod === 'easypaisa' ? 'EasyPaisa' : 'JazzCash'}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#ff6b35' }}>
+              <div
+                style={{
+                  fontSize: 'clamp(22px, 6vw, 28px)',
+                  fontWeight: 700,
+                  color: '#ff6b35',
+                }}
+              >
                 Mubariz
               </div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: '#22a06b' }}>
-                0318-9023001
+              <div
+                style={{
+                  fontSize: 'clamp(18px, 5vw, 22px)',
+                  fontWeight: 600,
+                  color: '#22a06b',
+                }}
+              >
+                {paymentMethod === 'easypaisa'
+                  ? EASYPAISA_NUMBER
+                  : JAZZCASH_NUMBER}
               </div>
-              <div style={{ fontSize: 16, color: '#ff6b35', marginTop: 10 }}>
+              <div
+                style={{
+                  fontSize: '16px',
+                  color: '#ff6b35',
+                  marginTop: '10px',
+                }}
+              >
                 Amount: Rs. {selectedPlan.minAmount.toLocaleString()}
               </div>
             </div>
-            <div style={{ marginBottom: 15 }}>
+
+            <div style={{ marginBottom: '20px' }}>
               <label
-                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
-              >
-                Complete Address
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Your complete address"
-                style={{
-                  width: '100%',
-                  background: '#0f0f1a',
-                  border: '1px solid #333',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  color: '#fff',
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label
-                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
+                style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}
               >
                 Upload Payment Screenshot
               </label>
@@ -790,11 +929,11 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
                   src={screenshotPreview}
                   alt="Preview"
                   style={{
-                    marginTop: 10,
+                    marginTop: '10px',
                     width: '100%',
-                    maxHeight: 200,
+                    maxHeight: '200px',
                     objectFit: 'cover',
-                    borderRadius: 8,
+                    borderRadius: '8px',
                   }}
                 />
               )}
@@ -802,16 +941,17 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
             <button
               onClick={handleInvest}
               disabled={loading}
+              className="invest-submit-btn"
               style={{
                 width: '100%',
                 background: '#ff6b35',
                 border: 'none',
-                borderRadius: 12,
+                borderRadius: '12px',
                 padding: '16px',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
-                fontSize: 16,
+                fontSize: '16px',
                 opacity: loading ? 0.6 : 1,
               }}
             >
@@ -826,65 +966,86 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
   );
 }
 
-// Investment Page Component
 function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
   const navigate = useNavigate();
   return (
     <div id="investment-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
         <div className="cart-header">💰 Investment Options</div>
         <div
+          className="investment-options-grid"
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 20,
-            marginBottom: 30,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '20px',
+            marginBottom: '30px',
           }}
         >
           <div
             onClick={() => navigate('/investment-plans')}
+            className="investment-option-card"
             style={{
               background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-              borderRadius: 24,
-              padding: 30,
+              borderRadius: '24px',
+              padding: 'clamp(20px, 5vw, 30px)',
               textAlign: 'center',
               cursor: 'pointer',
               border: '1px solid #ff6b35',
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 15 }}>📊</div>
-            <h3 style={{ color: '#ff6b35', marginBottom: 10 }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>📊</div>
+            <h3
+              style={{
+                color: '#ff6b35',
+                marginBottom: '10px',
+                fontSize: 'clamp(18px, 4vw, 22px)',
+              }}
+            >
               Investment Plans
             </h3>
-            <p style={{ color: '#ccc', fontSize: 14 }}>
-              Invest minimum Rs. 500 and get up to 70% return
+            <p style={{ color: '#ccc', fontSize: '14px' }}>
+              Invest minimum Rs. 500 and get up to 35% return
             </p>
-            <div style={{ marginTop: 15, fontSize: 12, color: '#22a06b' }}>
+            <div
+              style={{ marginTop: '15px', fontSize: '12px', color: '#22a06b' }}
+            >
               Click to View Plans →
             </div>
           </div>
           <div
             onClick={() => navigate('/my-investments')}
+            className="investment-option-card"
             style={{
               background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-              borderRadius: 24,
-              padding: 30,
+              borderRadius: '24px',
+              padding: 'clamp(20px, 5vw, 30px)',
               textAlign: 'center',
               cursor: 'pointer',
               border: '1px solid #22a06b',
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 15 }}>📋</div>
-            <h3 style={{ color: '#22a06b', marginBottom: 10 }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>📋</div>
+            <h3
+              style={{
+                color: '#22a06b',
+                marginBottom: '10px',
+                fontSize: 'clamp(18px, 4vw, 22px)',
+              }}
+            >
               My Investments
             </h3>
-            <p style={{ color: '#ccc', fontSize: 14 }}>
+            <p style={{ color: '#ccc', fontSize: '14px' }}>
               Track your active and completed investments
             </p>
-            <div style={{ marginTop: 15, fontSize: 12, color: '#ff6b35' }}>
+            <div
+              style={{ marginTop: '15px', fontSize: '12px', color: '#ff6b35' }}
+            >
               Click to View →
             </div>
           </div>
@@ -894,7 +1055,6 @@ function InvestmentPage({ currentUser, userStats, loadUserStats, showToast }) {
   );
 }
 
-// My Investments Page
 function MyInvestmentsPage({ currentUser, showToast }) {
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -907,6 +1067,7 @@ function MyInvestmentsPage({ currentUser, showToast }) {
     }
     fetchInvestments();
   }, [currentUser, navigate]);
+
   const fetchInvestments = async () => {
     if (!currentUser) return;
     setLoading(true);
@@ -937,59 +1098,24 @@ function MyInvestmentsPage({ currentUser, showToast }) {
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'pending':
-        return {
-          text: 'Pending',
-          color: '#cf7808',
-          bg: 'rgba(207, 120, 8, 0.1)',
-        };
-      case 'active':
-        return {
-          text: 'Active',
-          color: '#22a06b',
-          bg: 'rgba(34, 160, 107, 0.1)',
-        };
-      case 'completed':
-        return {
-          text: 'Completed',
-          color: '#22a06b',
-          bg: 'rgba(34, 160, 107, 0.2)',
-        };
-      case 'rejected':
-        return {
-          text: 'Rejected',
-          color: '#c0392b',
-          bg: 'rgba(192, 57, 43, 0.1)',
-        };
-      default:
-        return {
-          text: status || 'Pending',
-          color: '#aaa',
-          bg: 'rgba(136, 136, 136, 0.1)',
-        };
-    }
-  };
-
   if (!currentUser)
     return (
       <div className="page active">
         <div
           style={{
-            maxWidth: 600,
+            maxWidth: '600px',
             margin: '0 auto',
-            padding: 40,
+            padding: '40px 16px',
             textAlign: 'center',
           }}
         >
           <div className="big">💰</div>
-          <h2>Pehle Login Karo</h2>
+          <h2>Please Login First</h2>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
           >
-            Login Karein
+            Login
           </button>
         </div>
       </div>
@@ -997,19 +1123,22 @@ function MyInvestmentsPage({ currentUser, showToast }) {
 
   return (
     <div id="my-investments-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/investment')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
         <div className="cart-header">📋 My Investments</div>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
             Loading investments...
           </div>
         ) : investments.length === 0 ? (
           <div className="cart-empty">
             <div className="big">📭</div>
-            <p>Abhi tak koi investment nahi ki</p>
+            <p>No investments yet</p>
             <button
               className="btn btn-primary"
               onClick={() => navigate('/investment-plans')}
@@ -1018,116 +1147,117 @@ function MyInvestmentsPage({ currentUser, showToast }) {
             </button>
           </div>
         ) : (
-          investments.map((inv) => {
-            const statusBadge = getStatusBadge(inv.status);
-            return (
+          investments.map((inv) => (
+            <div
+              key={inv.id}
+              className="investment-item"
+              style={{
+                background: '#1a1a27',
+                borderRadius: '16px',
+                padding: '20px',
+                marginBottom: '20px',
+              }}
+            >
               <div
-                key={inv.id}
                 style={{
-                  background: '#1a1a27',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginBottom: 20,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                  marginBottom: '15px',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 10,
-                    marginBottom: 15,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 18,
-                        color: '#ff6b35',
-                      }}
-                    >
-                      {inv.planName || 'Investment'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
-                      {inv.date.toLocaleDateString()}
-                    </div>
-                  </div>
-                  <span
+                <div>
+                  <div
                     style={{
-                      background: statusBadge.bg,
-                      color: statusBadge.color,
-                      padding: '4px 12px',
-                      borderRadius: 20,
-                      fontSize: 12,
+                      fontWeight: 600,
+                      fontSize: 'clamp(16px, 4vw, 18px)',
+                      color: '#ff6b35',
                     }}
                   >
-                    {statusBadge.text}
-                  </span>
+                    {inv.planName || 'Investment Plan'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#aaa' }}>
+                    {inv.date.toLocaleDateString()}{' '}
+                    {inv.date.toLocaleTimeString()}
+                  </div>
                 </div>
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 15,
-                    marginBottom: 15,
+                    background:
+                      inv.paymentMethod === 'easypaisa'
+                        ? 'rgba(34,160,107,0.2)'
+                        : 'rgba(255,107,53,0.2)',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    color:
+                      inv.paymentMethod === 'easypaisa' ? '#22a06b' : '#ff6b35',
                   }}
                 >
-                  <div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
-                      Invested Amount
-                    </div>
-                    <div
-                      style={{ fontSize: 20, fontWeight: 600, color: '#fff' }}
-                    >
-                      Rs. {inv.amount?.toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
-                      Expected Return
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 20,
-                        fontWeight: 600,
-                        color: '#22a06b',
-                      }}
-                    >
-                      Rs. {inv.expectedReturn?.toLocaleString()}
-                    </div>
-                  </div>
+                  {inv.paymentMethod === 'easypaisa'
+                    ? '📱 EasyPaisa'
+                    : '💳 JazzCash'}
                 </div>
-                <div style={{ marginBottom: 15 }}>
-                  <div style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}>
-                    Address
-                  </div>
-                  <div style={{ fontSize: 13, color: '#ccc' }}>
-                    📍 {inv.address}
-                  </div>
-                </div>
-                {inv.screenshotUrl && (
-                  <div style={{ marginTop: 10 }}>
-                    <div
-                      style={{ fontSize: 12, color: '#aaa', marginBottom: 5 }}
-                    >
-                      Payment Screenshot:
-                    </div>
-                    <img
-                      src={inv.screenshotUrl}
-                      alt="Screenshot"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: 150,
-                        borderRadius: 8,
-                      }}
-                    />
-                  </div>
-                )}
               </div>
-            );
-          })
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                  gap: '15px',
+                  marginBottom: '15px',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '12px', color: '#aaa' }}>
+                    Invested Amount
+                  </div>
+                  <div
+                    style={{ fontSize: '20px', fontWeight: 600, color: '#fff' }}
+                  >
+                    Rs. {inv.amount?.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#aaa' }}>
+                    Return Percentage
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '20px',
+                      fontWeight: 600,
+                      color: '#22a06b',
+                    }}
+                  >
+                    {inv.returnPercentage || '?'}%
+                  </div>
+                </div>
+              </div>
+              {inv.screenshotUrl && (
+                <div style={{ marginTop: '10px' }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#aaa',
+                      marginBottom: '5px',
+                    }}
+                  >
+                    Payment Screenshot:
+                  </div>
+                  <img
+                    src={inv.screenshotUrl}
+                    alt="Screenshot"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '150px',
+                      borderRadius: '8px',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ))
         )}
       </div>
     </div>
@@ -1201,12 +1331,12 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
     const amount = parseInt(withdrawAmount);
     if (isNaN(amount) || amount < MIN_WITHDRAWAL_AMOUNT) {
       showToast(
-        `Withdrawal amount kam se kam Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()} hona chahiye`,
+        `Withdrawal amount must be at least Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`,
       );
       return false;
     }
     if (amount > (userStats?.totalCashback || 0)) {
-      showToast('Aapke paas itna cashback nahi hai!');
+      showToast('You do not have enough cashback balance!');
       return false;
     }
     if (paymentMethod === 'easypaisa') {
@@ -1250,7 +1380,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
 
   const handleWithdraw = async () => {
     if (!currentUser) {
-      showToast('Pehle login karo!');
+      showToast('Please login first!');
       navigate('/login');
       return;
     }
@@ -1261,25 +1391,30 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
       const withdrawalId = push(
         ref(rtdb, `withdrawals/${currentUser.uid}`),
       ).key;
+
       let withdrawalData = {
         amount,
         paymentMethod,
         timestamp: Date.now(),
-        status: 'pending',
       };
+
       let userUpdateData = {};
+      let paymentDetails = {};
+
       if (paymentMethod === 'easypaisa') {
         const normalizedNumber = normalizePakistanPhone(easyPaisaNumber);
         withdrawalData.easyPaisaNumber = normalizedNumber;
         withdrawalData.easyPaisaName = easyPaisaName;
         userUpdateData.easyPaisaNumber = normalizedNumber;
         userUpdateData.easyPaisaName = easyPaisaName;
+        paymentDetails = { number: normalizedNumber, name: easyPaisaName };
       } else if (paymentMethod === 'jazzcash') {
         const normalizedNumber = normalizePakistanPhone(jazzCashNumber);
         withdrawalData.jazzCashNumber = normalizedNumber;
         withdrawalData.jazzCashName = jazzCashName;
         userUpdateData.jazzCashNumber = normalizedNumber;
         userUpdateData.jazzCashName = jazzCashName;
+        paymentDetails = { number: normalizedNumber, name: jazzCashName };
       } else if (paymentMethod === 'bank') {
         withdrawalData.bankName = selectedBank;
         withdrawalData.bankAccountNumber = bankAccountNumber;
@@ -1287,20 +1422,31 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         userUpdateData.bankName = selectedBank;
         userUpdateData.bankAccountNumber = bankAccountNumber;
         userUpdateData.bankAccountTitle = bankAccountTitle;
+        paymentDetails = {
+          bank: selectedBank,
+          accountNumber: bankAccountNumber,
+          accountTitle: bankAccountTitle,
+        };
       }
+
       await set(
         ref(rtdb, `withdrawals/${currentUser.uid}/${withdrawalId}`),
         withdrawalData,
       );
+
       const userRef = ref(rtdb, `users/${currentUser.uid}`);
       const userSnap = await get(userRef);
       const currentCashback = userSnap.exists()
         ? userSnap.val().totalCashback || 0
-        : 0;
+        : userStats?.totalCashback || 0;
+
+      const newCashback = currentCashback - amount;
+
       await update(ref(rtdb, `users/${currentUser.uid}`), {
-        totalCashback: currentCashback - amount,
+        totalCashback: newCashback,
         ...userUpdateData,
       });
+
       await set(
         ref(rtdb, `cashbackHistory/${currentUser.uid}/${withdrawalId}`),
         {
@@ -1308,12 +1454,20 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           amount: -amount,
           description: `Withdrawal of Rs. ${amount.toLocaleString()}`,
           timestamp: Date.now(),
-          status: 'pending',
           paymentMethod,
         },
       );
+
+      await sendWithdrawalEmail(
+        currentUser.phone,
+        amount,
+        paymentMethod,
+        paymentDetails,
+      );
+
       await loadUserStats(currentUser.uid);
       await fetchWithdrawals();
+
       setWithdrawAmount('');
       if (paymentMethod === 'easypaisa') {
         setEasyPaisaNumber('');
@@ -1326,45 +1480,15 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         setBankAccountNumber('');
         setBankAccountTitle('');
       }
+
       showToast(
-        `✅ Withdrawal request of Rs. ${amount.toLocaleString()} submitted!`,
+        `✅ Withdrawal of Rs. ${amount.toLocaleString()} successful! New balance: Rs. ${newCashback.toLocaleString()}`,
       );
     } catch (error) {
       console.error('Error processing withdrawal:', error);
-      showToast('Withdrawal karne mein error aa gaya');
+      showToast('Error processing withdrawal');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'pending':
-        return {
-          text: 'Pending',
-          color: '#cf7808',
-          bg: 'rgba(207, 120, 8, 0.1)',
-        };
-      case 'approved':
-        return {
-          text: 'Approved',
-          color: '#22a06b',
-          bg: 'rgba(34, 160, 107, 0.1)',
-        };
-      case 'completed':
-        return {
-          text: 'Completed',
-          color: '#22a06b',
-          bg: 'rgba(34, 160, 107, 0.2)',
-        };
-      case 'rejected':
-        return {
-          text: 'Rejected',
-          color: '#c0392b',
-          bg: 'rgba(192, 57, 43, 0.1)',
-        };
-      default:
-        return { text: status, color: '#aaa', bg: 'rgba(136, 136, 136, 0.1)' };
     }
   };
 
@@ -1373,19 +1497,19 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
       <div className="page active">
         <div
           style={{
-            maxWidth: 600,
+            maxWidth: '600px',
             margin: '0 auto',
-            padding: 40,
+            padding: '40px 16px',
             textAlign: 'center',
           }}
         >
           <div className="big">🏦</div>
-          <h2>Pehle Login Karo</h2>
+          <h2>Please Login First</h2>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
           >
-            Login Karein
+            Login
           </button>
         </div>
       </div>
@@ -1393,63 +1517,83 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
 
   return (
     <div id="withdrawal-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
         <div className="cart-header">🏦 Withdraw Cashback</div>
         <div
+          className="withdrawal-form"
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: 24,
-            padding: 30,
-            marginBottom: 30,
+            borderRadius: '24px',
+            padding: 'clamp(20px, 5vw, 30px)',
+            marginBottom: '30px',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: 25 }}>
-            <div style={{ fontSize: 48, marginBottom: 10 }}>💸</div>
-            <h2 style={{ marginBottom: 5, color: '#ff6b35' }}>
+          <div style={{ textAlign: 'center', marginBottom: '25px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>💸</div>
+            <h2
+              style={{
+                marginBottom: '5px',
+                color: '#ff6b35',
+                fontSize: 'clamp(20px, 5vw, 28px)',
+              }}
+            >
               Withdraw Your Cashback
             </h2>
-            <p style={{ color: '#ccc' }}>
+            <p style={{ color: '#ccc', fontSize: '14px' }}>
               Select your preferred withdrawal method
             </p>
           </div>
           <div
+            className="balance-box"
             style={{
               background: '#000000',
-              borderRadius: 16,
-              padding: 20,
-              marginBottom: 20,
+              borderRadius: '16px',
+              padding: '20px',
+              marginBottom: '20px',
               textAlign: 'center',
             }}
           >
-            <div style={{ fontSize: 14, color: '#aaa', marginBottom: 5 }}>
+            <div
+              style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
+            >
               Available Balance
             </div>
-            <div style={{ fontSize: 42, fontWeight: 700, color: '#22a06b' }}>
+            <div
+              style={{
+                fontSize: 'clamp(32px, 8vw, 42px)',
+                fontWeight: 700,
+                color: '#22a06b',
+              }}
+            >
               Rs. {(userStats?.totalCashback || 0).toLocaleString()}
             </div>
-            <div style={{ fontSize: 12, color: '#aaa', marginTop: 5 }}>
+            <div style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
               Minimum withdrawal: Rs. {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
             </div>
           </div>
-          <div style={{ marginBottom: 25 }}>
+          <div style={{ marginBottom: '25px' }}>
             <label
               style={{
                 display: 'block',
-                marginBottom: 10,
-                fontSize: 14,
+                marginBottom: '10px',
+                fontSize: '14px',
                 color: '#ccc',
               }}
             >
               Select Withdrawal Method
             </label>
             <div
+              className="method-buttons"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 10,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                gap: '10px',
               }}
             >
               {[
@@ -1460,16 +1604,18 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 <button
                   key={method.id}
                   onClick={() => setPaymentMethod(method.id)}
+                  className="method-btn"
                   style={{
                     background:
                       paymentMethod === method.id ? method.color : '#1a1a27',
                     border:
                       paymentMethod === method.id ? 'none' : '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '12px',
                     color: paymentMethod === method.id ? '#fff' : '#ccc',
                     cursor: 'pointer',
                     fontWeight: 500,
+                    fontSize: 'clamp(12px, 3vw, 14px)',
                   }}
                 >
                   {method.label}
@@ -1478,13 +1624,13 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
             </div>
           </div>
           {paymentMethod === 'easypaisa' && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ marginBottom: 15 }}>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1495,23 +1641,24 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   value={easyPaisaNumber}
                   onChange={(e) => setEasyPaisaNumber(e.target.value)}
                   placeholder="+923001234567"
+                  className="withdraw-input"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 />
               </div>
-              <div style={{ marginBottom: 15 }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1522,27 +1669,28 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   value={easyPaisaName}
                   onChange={(e) => setEasyPaisaName(e.target.value)}
                   placeholder="As per CNIC"
+                  className="withdraw-input"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 />
               </div>
             </div>
           )}
           {paymentMethod === 'jazzcash' && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ marginBottom: 15 }}>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1553,23 +1701,24 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   value={jazzCashNumber}
                   onChange={(e) => setJazzCashNumber(e.target.value)}
                   placeholder="+923001234567"
+                  className="withdraw-input"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 />
               </div>
-              <div style={{ marginBottom: 15 }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1580,27 +1729,28 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   value={jazzCashName}
                   onChange={(e) => setJazzCashName(e.target.value)}
                   placeholder="As per CNIC"
+                  className="withdraw-input"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 />
               </div>
             </div>
           )}
           {paymentMethod === 'bank' && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ marginBottom: 15 }}>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1609,14 +1759,15 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 <select
                   value={selectedBank}
                   onChange={(e) => setSelectedBank(e.target.value)}
+                  className="withdraw-select"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 >
                   <option value="">-- Select Bank --</option>
@@ -1627,12 +1778,12 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   ))}
                 </select>
               </div>
-              <div style={{ marginBottom: 15 }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1643,23 +1794,24 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   value={bankAccountNumber}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
                   placeholder="Enter bank account number"
+                  className="withdraw-input"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 />
               </div>
-              <div style={{ marginBottom: 15 }}>
+              <div style={{ marginBottom: '15px' }}>
                 <label
                   style={{
                     display: 'block',
-                    marginBottom: 8,
-                    fontSize: 14,
+                    marginBottom: '8px',
+                    fontSize: '14px',
                     color: '#ccc',
                   }}
                 >
@@ -1670,25 +1822,26 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   value={bankAccountTitle}
                   onChange={(e) => setBankAccountTitle(e.target.value)}
                   placeholder="As per bank statement"
+                  className="withdraw-input"
                   style={{
                     width: '100%',
                     background: '#1a1a27',
                     border: '1px solid #333',
-                    borderRadius: 12,
+                    borderRadius: '12px',
                     padding: '14px 16px',
                     color: '#fff',
-                    fontSize: 16,
+                    fontSize: '16px',
                   }}
                 />
               </div>
             </div>
           )}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: '20px' }}>
             <label
               style={{
                 display: 'block',
-                marginBottom: 8,
-                fontSize: 14,
+                marginBottom: '8px',
+                fontSize: '14px',
                 color: '#ccc',
               }}
             >
@@ -1699,14 +1852,15 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
               placeholder={`Min. Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`}
+              className="withdraw-input"
               style={{
                 width: '100%',
                 background: '#1a1a27',
                 border: '1px solid #333',
-                borderRadius: 12,
+                borderRadius: '12px',
                 padding: '14px 16px',
                 color: '#fff',
-                fontSize: 16,
+                fontSize: '16px',
               }}
             />
           </div>
@@ -1715,16 +1869,17 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
             disabled={
               loading || (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
             }
+            className="withdraw-btn"
             style={{
               width: '100%',
               background: '#ff6b35',
               border: 'none',
-              borderRadius: 12,
+              borderRadius: '12px',
               padding: '16px',
               color: 'white',
               cursor: 'pointer',
               fontWeight: 600,
-              fontSize: 16,
+              fontSize: '16px',
               opacity:
                 loading ||
                 (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
@@ -1735,85 +1890,92 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
             {loading ? 'Processing...' : 'Withdraw Now'}
           </button>
         </div>
-        <div style={{ background: '#1a1a27', borderRadius: 16, padding: 25 }}>
+        <div
+          style={{
+            background: '#1a1a27',
+            borderRadius: '16px',
+            padding: 'clamp(16px, 4vw, 25px)',
+          }}
+        >
           <h3
             style={{
-              marginBottom: 20,
+              marginBottom: '20px',
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              gap: '10px',
               color: '#fff',
+              fontSize: 'clamp(16px, 4vw, 20px)',
             }}
           >
             📋 Withdrawal History
           </h3>
           {loadingWithdrawals ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
+            <div
+              style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}
+            >
               Loading history...
             </div>
           ) : withdrawals.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
-              <div style={{ fontSize: 48, marginBottom: 10 }}>📭</div>
-              <p>Abhi tak koi withdrawal request nahi ki</p>
+            <div
+              style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '10px' }}>📭</div>
+              <p>No withdrawal requests yet</p>
             </div>
           ) : (
-            withdrawals.map((wd) => {
-              const statusBadge = getStatusBadge(wd.status);
-              return (
+            withdrawals.map((wd) => (
+              <div
+                key={wd.id}
+                className="withdrawal-item"
+                style={{
+                  background: '#000000',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginBottom: '12px',
+                }}
+              >
                 <div
-                  key={wd.id}
                   style={{
-                    background: '#000000',
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 12,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px',
                   }}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: 10,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{ fontWeight: 600, fontSize: 16, color: '#fff' }}
-                      >
-                        Rs. {wd.amount.toLocaleString()}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#aaa' }}>
-                        {wd.date.toLocaleDateString()}
-                      </div>
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '16px',
+                        color: '#fff',
+                      }}
+                    >
+                      Rs. {wd.amount.toLocaleString()}
                     </div>
-                    <div>
-                      <span
-                        style={{
-                          background: statusBadge.bg,
-                          color: statusBadge.color,
-                          padding: '4px 12px',
-                          borderRadius: 20,
-                          fontSize: 12,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {statusBadge.text}
-                      </span>
+                    <div style={{ fontSize: '12px', color: '#aaa' }}>
+                      {wd.date.toLocaleDateString()}{' '}
+                      {wd.date.toLocaleTimeString()}
                     </div>
-                  </div>
-                  <div style={{ fontSize: 13, color: '#ccc', marginTop: 8 }}>
-                    📱{' '}
-                    {wd.paymentMethod === 'easypaisa'
-                      ? `EasyPaisa: ${wd.easyPaisaNumber}`
-                      : wd.paymentMethod === 'jazzcash'
-                        ? `JazzCash: ${wd.jazzCashNumber}`
-                        : `${wd.bankName}: ${wd.bankAccountNumber}`}
                   </div>
                 </div>
-              );
-            })
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: '#ccc',
+                    marginTop: '8px',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  📱{' '}
+                  {wd.paymentMethod === 'easypaisa'
+                    ? `EasyPaisa: ${wd.easyPaisaNumber}`
+                    : wd.paymentMethod === 'jazzcash'
+                      ? `JazzCash: ${wd.jazzCashNumber}`
+                      : `${wd.bankName}: ${wd.bankAccountNumber}`}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -1826,7 +1988,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
   const navigate = useNavigate();
   const [copySuccess, setCopySuccess] = useState(false);
   const shareOnWhatsApp = () => {
-    const message = `Assalam o Alaikum! 🎉\n\nJoin CashBack Shop and earn ${BASE_CASHBACK_PERCENTAGE}% cashback on every purchase! Use my referral link:\n\n${referLink}`;
+    const message = `Hello! 🎉\n\nJoin CashBack Shop and earn ${BASE_CASHBACK_PERCENTAGE}% cashback on every purchase! Use my referral link:\n\n${referLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
   const shareOnFacebook = () => {
@@ -1842,7 +2004,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
       setTimeout(() => setCopySuccess(false), 2000);
       if (onCopyRefer) onCopyRefer();
     } catch {
-      alert('Copy nahi ho saka');
+      alert('Failed to copy');
     }
   };
   if (!currentUser)
@@ -1850,72 +2012,86 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
       <div className="page active">
         <div
           style={{
-            maxWidth: 600,
+            maxWidth: '600px',
             margin: '0 auto',
-            padding: 40,
+            padding: '40px 16px',
             textAlign: 'center',
           }}
         >
           <div className="big">🔗</div>
-          <h2>Pehle Login Karo</h2>
+          <h2>Please Login First</h2>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
           >
-            Login Karein
+            Login
           </button>
         </div>
       </div>
     );
   return (
     <div id="referral-page" className="page active">
-      <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '700px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
-        </div>
-        <div className="cart-header" style={{ marginBottom: 30 }}>
-          🔗 Dost Ko Refer Karo — Rs. {REFER_BONUS.toLocaleString()} Kamao!
+          ← Go Back
         </div>
         <div
+          className="cart-header"
+          style={{ marginBottom: '30px', fontSize: 'clamp(18px, 5vw, 24px)' }}
+        >
+          🔗 Refer a Friend — Earn Rs. {REFER_BONUS.toLocaleString()}!
+        </div>
+        <div
+          className="referral-card"
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: 24,
-            padding: 30,
-            marginBottom: 30,
+            borderRadius: '24px',
+            padding: 'clamp(20px, 5vw, 30px)',
+            marginBottom: '30px',
             textAlign: 'center',
             border: '1px solid rgba(255,107,53,0.2)',
           }}
         >
-          <div style={{ fontSize: 48, marginBottom: 15 }}>🎁</div>
-          <h2 style={{ marginBottom: 10, color: '#ff6b35' }}>
+          <div style={{ fontSize: '48px', marginBottom: '15px' }}>🎁</div>
+          <h2
+            style={{
+              marginBottom: '10px',
+              color: '#ff6b35',
+              fontSize: 'clamp(24px, 6vw, 32px)',
+            }}
+          >
             Rs. {REFER_BONUS.toLocaleString()} Bonus!
           </h2>
-          <p style={{ color: '#ccc', marginBottom: 25 }}>
-            Jab aapka dost register karega aur pehla order karega, aapko{' '}
-            {REFER_BONUS} rupees extra cashback milega!
+          <p style={{ color: '#ccc', marginBottom: '25px', fontSize: '14px' }}>
+            When your friend registers and makes their first order, you will
+            receive {REFER_BONUS} rupees extra cashback!
           </p>
           <div
+            className="referral-link-box"
             style={{
               background: '#000000',
-              borderRadius: 12,
-              padding: 15,
-              marginBottom: 20,
+              borderRadius: '12px',
+              padding: '15px',
+              marginBottom: '20px',
             }}
           >
             <div
               style={{
-                fontSize: 12,
+                fontSize: '12px',
                 color: '#aaa',
-                marginBottom: 8,
+                marginBottom: '8px',
                 textAlign: 'left',
               }}
             >
-              Aapka Referral Link:
+              Your Referral Link:
             </div>
             <div
               style={{
                 display: 'flex',
-                gap: 10,
+                gap: '10px',
                 alignItems: 'center',
                 flexWrap: 'wrap',
               }}
@@ -1924,23 +2100,26 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
                 type="text"
                 value={referLink}
                 readOnly
+                className="referral-link-input"
                 style={{
                   flex: 1,
+                  minWidth: '200px',
                   background: '#1a1a27',
                   border: '1px solid #333',
-                  borderRadius: 8,
+                  borderRadius: '8px',
                   padding: '12px 15px',
                   color: '#ff6b35',
-                  fontSize: 12,
+                  fontSize: '12px',
                   fontFamily: 'monospace',
                 }}
               />
               <button
                 onClick={copyToClipboard}
+                className="copy-btn"
                 style={{
                   background: copySuccess ? '#22a06b' : '#ff6b35',
                   border: 'none',
-                  borderRadius: 8,
+                  borderRadius: '8px',
                   padding: '12px 20px',
                   color: 'white',
                   cursor: 'pointer',
@@ -1952,43 +2131,48 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             </div>
           </div>
           <div
+            className="share-buttons"
             style={{
               display: 'flex',
-              gap: 12,
+              gap: '12px',
               justifyContent: 'center',
               flexWrap: 'wrap',
             }}
           >
             <button
               onClick={shareOnWhatsApp}
+              className="share-wa-btn"
               style={{
                 background: '#25D366',
                 border: 'none',
-                borderRadius: 40,
+                borderRadius: '40px',
                 padding: '12px 24px',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: '8px',
+                fontSize: 'clamp(12px, 3vw, 14px)',
               }}
             >
               📱 Share on WhatsApp
             </button>
             <button
               onClick={shareOnFacebook}
+              className="share-fb-btn"
               style={{
                 background: '#1877F2',
                 border: 'none',
-                borderRadius: 40,
+                borderRadius: '40px',
                 padding: '12px 24px',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: '8px',
+                fontSize: 'clamp(12px, 3vw, 14px)',
               }}
             >
               📘 Share on Facebook
@@ -2000,11 +2184,10 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
   );
 }
 
-// My Referrals Page - Enhanced with login tracking
+// My Referrals Page - Simplified (only Referred User and Signup Date, no Bonus column)
 function MyReferralsPage({ currentUser }) {
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [liveTracking, setLiveTracking] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -2013,52 +2196,6 @@ function MyReferralsPage({ currentUser }) {
       return;
     }
     fetchReferrals();
-
-    // Set up real-time listener for referral updates
-    const referralsRef = ref(rtdb, `referrals/${currentUser.uid}`);
-    const unsubscribe = () => {
-      // Cleanup function
-    };
-
-    // Using onValue for real-time updates
-    import('firebase/database')
-      .then(({ onValue }) => {
-        const ref = referralsRef;
-        const listener = onValue(ref, (snapshot) => {
-          if (snapshot.exists()) {
-            const referralsData = snapshot.val();
-            const referralsList = Object.entries(referralsData).map(
-              ([id, refData]) => ({
-                id,
-                ...refData,
-                date: new Date(refData.timestamp),
-                lastLoginAt: refData.lastLoginAt
-                  ? new Date(refData.lastLoginAt)
-                  : null,
-                orderDate: refData.orderDate
-                  ? new Date(refData.orderDate)
-                  : null,
-              }),
-            );
-            referralsList.sort((a, b) => b.timestamp - a.timestamp);
-            setReferrals(referralsList);
-            setLiveTracking(true);
-          } else {
-            setReferrals([]);
-          }
-          setLoading(false);
-        });
-
-        return () => listener();
-      })
-      .catch(() => {
-        // Fallback to single fetch if onValue is not available
-        setLoading(false);
-      });
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
   }, [currentUser, navigate]);
 
   const fetchReferrals = async () => {
@@ -2074,8 +2211,6 @@ function MyReferralsPage({ currentUser }) {
             id,
             ...ref,
             date: new Date(ref.timestamp),
-            lastLoginAt: ref.lastLoginAt ? new Date(ref.lastLoginAt) : null,
-            orderDate: ref.orderDate ? new Date(ref.orderDate) : null,
           }),
         );
         referralsList.sort((a, b) => b.timestamp - a.timestamp);
@@ -2090,160 +2225,81 @@ function MyReferralsPage({ currentUser }) {
     }
   };
 
-  const getReferralStatus = (referral) => {
-    if (referral.orderCompleted && referral.bonusEarned) {
-      return { text: 'Order Completed', color: '#22a06b', icon: '✅' };
-    } else if (referral.orderCompleted === false && referral.lastLoginAt) {
-      return { text: 'Logged In - No Order', color: '#cf7808', icon: '👤' };
-    } else if (referral.lastLoginAt) {
-      return { text: 'Account Created', color: '#3b82f6', icon: '📱' };
-    } else if (referral.orderDate) {
-      return { text: 'Order Placed', color: '#22a06b', icon: '📦' };
-    } else {
-      return { text: 'Pending Signup', color: '#aaa', icon: '⏳' };
-    }
-  };
-
   if (!currentUser)
     return (
       <div className="page active">
         <div
           style={{
-            maxWidth: 600,
+            maxWidth: '600px',
             margin: '0 auto',
-            padding: 40,
+            padding: '40px 16px',
             textAlign: 'center',
           }}
         >
           <div className="big">👥</div>
-          <h2>Pehle Login Karo</h2>
+          <h2>Please Login First</h2>
           <button
             className="btn btn-primary"
             onClick={() => navigate('/login')}
           >
-            Login Karein
+            Login
           </button>
         </div>
       </div>
     );
 
-  const completedReferrals = referrals.filter((r) => r.bonusEarned).length;
-  const pendingReferrals = referrals.filter(
-    (r) => !r.bonusEarned && r.referredUser,
-  ).length;
-  const totalBonus = referrals.reduce(
-    (sum, r) => sum + (r.bonusEarned || 0),
-    0,
-  );
+  const totalReferrals = referrals.length;
 
   return (
     <div id="my-referrals-page" className="page active">
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
         <div className="cart-header">👥 My Referrals</div>
 
-        {/* Stats Cards */}
         <div
+          className="referral-stats"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 15,
-            marginBottom: 25,
+            gap: '15px',
+            marginBottom: '25px',
           }}
         >
           <div
+            className="stat-card"
             style={{
               background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-              borderRadius: 16,
-              padding: 20,
+              borderRadius: '16px',
+              padding: '20px',
               textAlign: 'center',
               border: '1px solid #ff6b35',
             }}
           >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#ff6b35' }}>
-              {referrals.length}
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>👥</div>
+            <div
+              style={{ fontSize: '28px', fontWeight: 700, color: '#ff6b35' }}
+            >
+              {totalReferrals}
             </div>
-            <div style={{ fontSize: 13, color: '#aaa' }}>Total Referrals</div>
-          </div>
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-              borderRadius: 16,
-              padding: 20,
-              textAlign: 'center',
-              border: '1px solid #22a06b',
-            }}
-          >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#22a06b' }}>
-              {completedReferrals}
-            </div>
-            <div style={{ fontSize: 13, color: '#aaa' }}>Completed Orders</div>
-          </div>
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-              borderRadius: 16,
-              padding: 20,
-              textAlign: 'center',
-              border: '1px solid #cf7808',
-            }}
-          >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#cf7808' }}>
-              {pendingReferrals}
-            </div>
-            <div style={{ fontSize: 13, color: '#aaa' }}>
-              Pending Signup/Order
-            </div>
-          </div>
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-              borderRadius: 16,
-              padding: 20,
-              textAlign: 'center',
-              border: '1px solid #3b82f6',
-            }}
-          >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>💰</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#3b82f6' }}>
-              Rs. {totalBonus.toLocaleString()}
-            </div>
-            <div style={{ fontSize: 13, color: '#aaa' }}>
-              Total Bonus Earned
+            <div style={{ fontSize: '13px', color: '#aaa' }}>
+              Total Referrals
             </div>
           </div>
         </div>
 
-        {liveTracking && (
-          <div
-            style={{
-              background: 'rgba(34, 160, 107, 0.1)',
-              borderRadius: 12,
-              padding: '10px 15px',
-              marginBottom: 20,
-              textAlign: 'center',
-              border: '1px solid #22a06b',
-            }}
-          >
-            <span style={{ color: '#22a06b', fontSize: 13 }}>
-              🟢 Live Tracking Active - Real-time updates enabled!
-            </span>
-          </div>
-        )}
-
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
             Loading referrals...
           </div>
         ) : referrals.length === 0 ? (
           <div className="cart-empty">
             <div className="big">👥</div>
-            <p>Abhi tak kisi ne aapka referral link use nahi kiya</p>
+            <p>No one has used your referral link yet</p>
             <button
               className="btn btn-primary"
               onClick={() => navigate('/refer')}
@@ -2253,13 +2309,21 @@ function MyReferralsPage({ currentUser }) {
           </div>
         ) : (
           <div
+            className="referrals-table-container"
             style={{
               background: '#1a1a27',
-              borderRadius: 16,
-              overflow: 'hidden',
+              borderRadius: '16px',
+              overflow: 'auto',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table
+              className="referrals-table"
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                minWidth: '400px',
+              }}
+            >
               <thead>
                 <tr
                   style={{
@@ -2285,167 +2349,186 @@ function MyReferralsPage({ currentUser }) {
                   >
                     Signup Date
                   </th>
-                  <th
-                    style={{
-                      padding: '15px',
-                      textAlign: 'left',
-                      color: '#ff6b35',
-                    }}
-                  >
-                    Last Login
-                  </th>
-                  <th
-                    style={{
-                      padding: '15px',
-                      textAlign: 'left',
-                      color: '#ff6b35',
-                    }}
-                  >
-                    Order Date
-                  </th>
-                  <th
-                    style={{
-                      padding: '15px',
-                      textAlign: 'left',
-                      color: '#ff6b35',
-                    }}
-                  >
-                    Status
-                  </th>
-                  <th
-                    style={{
-                      padding: '15px',
-                      textAlign: 'left',
-                      color: '#ff6b35',
-                    }}
-                  >
-                    Bonus Earned
-                  </th>
                 </tr>
               </thead>
               <tbody>
-                {referrals.map((ref) => {
-                  const status = getReferralStatus(ref);
-                  return (
-                    <tr key={ref.id} style={{ borderBottom: '1px solid #333' }}>
-                      <td style={{ padding: '15px', color: '#fff' }}>
-                        {ref.referredPhone ||
-                          ref.referredUser?.slice(0, 8) ||
-                          'Unknown'}
-                      </td>
-                      <td style={{ padding: '15px', color: '#aaa' }}>
-                        {ref.date.toLocaleDateString()}{' '}
-                        {ref.date.toLocaleTimeString()}
-                      </td>
-                      <td
-                        style={{
-                          padding: '15px',
-                          color: ref.lastLoginAt ? '#ff6b35' : '#aaa',
-                        }}
-                      >
-                        {ref.lastLoginAt
-                          ? `${ref.lastLoginAt.toLocaleDateString()} ${ref.lastLoginAt.toLocaleTimeString()}`
-                          : 'Not logged in yet'}
-                      </td>
-                      <td
-                        style={{
-                          padding: '15px',
-                          color: ref.orderDate ? '#22a06b' : '#aaa',
-                        }}
-                      >
-                        {ref.orderDate
-                          ? `${ref.orderDate.toLocaleDateString()} ${ref.orderDate.toLocaleTimeString()}`
-                          : 'No order yet'}
-                      </td>
-                      <td style={{ padding: '15px' }}>
-                        <span
-                          style={{
-                            background: status.bg || 'rgba(136,136,136,0.1)',
-                            color: status.color,
-                            padding: '4px 12px',
-                            borderRadius: 20,
-                            fontSize: 12,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                          }}
-                        >
-                          {status.icon} {status.text}
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          padding: '15px',
-                          color: '#22a06b',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {ref.bonusEarned
-                          ? `+Rs. ${ref.bonusEarned.toLocaleString()}`
-                          : ref.orderCompleted === false && ref.lastLoginAt
-                            ? 'Pending Order'
-                            : ref.lastLoginAt
-                              ? 'Awaiting Order'
-                              : 'Pending Signup'}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {referrals.map((ref) => (
+                  <tr key={ref.id} style={{ borderBottom: '1px solid #333' }}>
+                    <td style={{ padding: '15px', color: '#fff' }}>
+                      {ref.referredPhone ||
+                        ref.referredUser?.slice(0, 8) ||
+                        'Unknown'}
+                    </td>
+                    <td style={{ padding: '15px', color: '#aaa' }}>
+                      {ref.date.toLocaleDateString()}{' '}
+                      {ref.date.toLocaleTimeString()}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
 
-        {/* Explanation Section */}
+// Contact Us Page
+function ContactUsPage({ onNavigate }) {
+  const navigate = useNavigate();
+  return (
+    <div id="contact-us-page" className="page active">
+      <div
+        className="page-container"
+        style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px' }}
+      >
+        <div className="back-btn" onClick={() => navigate('/')}>
+          ← Go Back
+        </div>
+        <div className="cart-header">📞 Contact Us</div>
         <div
           style={{
-            background: '#1a1a27',
-            borderRadius: 16,
-            padding: 20,
-            marginTop: 25,
-            border: '1px solid #333',
+            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+            borderRadius: '24px',
+            padding: 'clamp(30px, 6vw, 40px)',
+            textAlign: 'center',
+            marginBottom: '30px',
           }}
         >
-          <h3 style={{ color: '#ff6b35', marginBottom: 15 }}>
-            📌 How Referral Tracking Works
-          </h3>
-          <div
-            style={{ display: 'grid', gap: 10, fontSize: 13, color: '#ccc' }}
+          <div style={{ fontSize: '64px', marginBottom: '20px' }}>📞</div>
+          <h2
+            style={{
+              color: '#ff6b35',
+              marginBottom: '20px',
+              fontSize: 'clamp(24px, 5vw, 32px)',
+            }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>1️⃣</span>
-              <span>
-                When someone signs up using your referral link, their account is
-                linked to you.
-              </span>
+            Get in Touch
+          </h2>
+          <p
+            style={{
+              color: '#ccc',
+              marginBottom: '30px',
+              fontSize: '16px',
+              lineHeight: 1.6,
+            }}
+          >
+            Have questions? We're here to help! Reach out to us anytime.
+          </p>
+
+          <div
+            className="contact-info"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              maxWidth: '400px',
+              margin: '0 auto',
+            }}
+          >
+            <div
+              className="contact-card"
+              style={{
+                background: '#000000',
+                borderRadius: '16px',
+                padding: '20px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>📱</div>
+              <div
+                style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
+              >
+                Call / WhatsApp
+              </div>
+              <a
+                href={`tel:${SUPPORT_NUMBER}`}
+                style={{
+                  fontSize: 'clamp(20px, 5vw, 28px)',
+                  fontWeight: 700,
+                  color: '#22a06b',
+                  textDecoration: 'none',
+                  display: 'inline-block',
+                }}
+              >
+                {SUPPORT_NUMBER}
+              </a>
+              <div style={{ marginTop: '10px' }}>
+                <button
+                  onClick={() => {
+                    window.open(`https://wa.me/${SUPPORT_NUMBER}`, '_blank');
+                  }}
+                  style={{
+                    background: '#25D366',
+                    border: 'none',
+                    borderRadius: '40px',
+                    padding: '10px 20px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    marginTop: '10px',
+                  }}
+                >
+                  WhatsApp Now 📲
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>2️⃣</span>
-              <span>
-                You can see when they{' '}
-                <strong style={{ color: '#ff6b35' }}>login</strong> to their
-                account.
-              </span>
+
+            <div
+              className="contact-card"
+              style={{
+                background: '#000000',
+                borderRadius: '16px',
+                padding: '20px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>📧</div>
+              <div
+                style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
+              >
+                Email
+              </div>
+              <a
+                href="mailto:support@cashbackstore.pk"
+                style={{
+                  fontSize: 'clamp(14px, 3vw, 18px)',
+                  fontWeight: 600,
+                  color: '#ff6b35',
+                  textDecoration: 'none',
+                  wordBreak: 'break-all',
+                }}
+              >
+                support@cashbackstore.pk
+              </a>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>3️⃣</span>
-              <span>
-                You can see when they{' '}
-                <strong style={{ color: '#22a06b' }}>
-                  place their first order
-                </strong>
-                .
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>4️⃣</span>
-              <span>
-                Once they complete their first order, you receive{' '}
-                <strong style={{ color: '#22a06b' }}>
-                  Rs. {REFER_BONUS.toLocaleString()} bonus
-                </strong>
-                .
-              </span>
+
+            <div
+              className="contact-card"
+              style={{
+                background: '#000000',
+                borderRadius: '16px',
+                padding: '20px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>⏰</div>
+              <div
+                style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
+              >
+                Support Hours
+              </div>
+              <div
+                style={{ fontSize: '16px', fontWeight: 600, color: '#22a06b' }}
+              >
+                24/7 Customer Support
+              </div>
+              <div
+                style={{ fontSize: '14px', color: '#ccc', marginTop: '5px' }}
+              >
+                Always available to help you!
+              </div>
             </div>
           </div>
         </div>
@@ -2485,16 +2568,32 @@ function AboutUsPage({ onNavigate }) {
   ];
   return (
     <div id="about-us-page" className="page active">
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{ fontSize: 64, marginBottom: 15 }}>🏪</div>
-          <h1 style={{ color: '#ff6b35', marginBottom: 10 }}>
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ fontSize: '64px', marginBottom: '15px' }}>🏪</div>
+          <h1
+            style={{
+              color: '#ff6b35',
+              marginBottom: '10px',
+              fontSize: 'clamp(28px, 6vw, 40px)',
+            }}
+          >
             About Cashback Store
           </h1>
-          <p style={{ color: '#ccc', maxWidth: 700, margin: '0 auto' }}>
+          <p
+            style={{
+              color: '#ccc',
+              maxWidth: '700px',
+              margin: '0 auto',
+              fontSize: '14px',
+            }}
+          >
             Pakistan's most trusted cashback platform offering premium products
             with guaranteed returns
           </p>
@@ -2502,59 +2601,88 @@ function AboutUsPage({ onNavigate }) {
         <div
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: 24,
-            padding: 30,
-            marginBottom: 30,
+            borderRadius: '24px',
+            padding: 'clamp(20px, 5vw, 30px)',
+            marginBottom: '30px',
           }}
         >
           <h2
-            style={{ color: '#ff6b35', marginBottom: 20, textAlign: 'center' }}
+            style={{
+              color: '#ff6b35',
+              marginBottom: '20px',
+              textAlign: 'center',
+              fontSize: 'clamp(22px, 5vw, 28px)',
+            }}
           >
             Our Mission
           </h2>
-          <p style={{ color: '#ccc', lineHeight: 1.6, textAlign: 'center' }}>
+          <p
+            style={{
+              color: '#ccc',
+              lineHeight: 1.6,
+              textAlign: 'center',
+              fontSize: '14px',
+            }}
+          >
             At Cashback Store, we believe in making every purchase rewarding.
             Our mission is to provide high-quality products while giving our
             customers the best cashback rewards and investment opportunities in
             Pakistan.
           </p>
         </div>
-        <div style={{ marginBottom: 30 }}>
+        <div style={{ marginBottom: '30px' }}>
           <h2
-            style={{ color: '#ff6b35', marginBottom: 20, textAlign: 'center' }}
+            style={{
+              color: '#ff6b35',
+              marginBottom: '20px',
+              textAlign: 'center',
+              fontSize: 'clamp(22px, 5vw, 28px)',
+            }}
           >
             Meet Our Team
           </h2>
           <div
+            className="team-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: 20,
+              gap: '20px',
             }}
           >
             {teamMembers.map((member, idx) => (
               <div
                 key={idx}
+                className="team-card"
                 style={{
                   background: '#1a1a27',
-                  borderRadius: 20,
-                  padding: 25,
+                  borderRadius: '20px',
+                  padding: '25px',
                   textAlign: 'center',
                   border: '1px solid #333',
                 }}
               >
-                <div style={{ fontSize: 48, marginBottom: 10 }}>
+                <div style={{ fontSize: '48px', marginBottom: '10px' }}>
                   {member.icon}
                 </div>
-                <h3 style={{ color: '#ff6b35', marginBottom: 5 }}>
+                <h3
+                  style={{
+                    color: '#ff6b35',
+                    marginBottom: '5px',
+                    fontSize: 'clamp(16px, 4vw, 20px)',
+                  }}
+                >
                   {member.name}
                 </h3>
                 <div
-                  style={{ fontSize: 14, color: '#22a06b', marginBottom: 10 }}
+                  style={{
+                    fontSize: '14px',
+                    color: '#22a06b',
+                    marginBottom: '10px',
+                  }}
                 >
                   {member.role}
                 </div>
-                <p style={{ fontSize: 12, color: '#aaa' }}>
+                <p style={{ fontSize: '12px', color: '#aaa' }}>
                   {member.description}
                 </p>
               </div>
@@ -2564,48 +2692,69 @@ function AboutUsPage({ onNavigate }) {
         <div
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: 24,
-            padding: 30,
-            marginBottom: 30,
+            borderRadius: '24px',
+            padding: 'clamp(20px, 5vw, 30px)',
+            marginBottom: '30px',
             textAlign: 'center',
           }}
         >
-          <div style={{ fontSize: 40, marginBottom: 15 }}>🎧</div>
-          <h2 style={{ color: '#ff6b35', marginBottom: 10 }}>
+          <div style={{ fontSize: '40px', marginBottom: '15px' }}>🎧</div>
+          <h2
+            style={{
+              color: '#ff6b35',
+              marginBottom: '10px',
+              fontSize: 'clamp(22px, 5vw, 28px)',
+            }}
+          >
             24/7 Customer Support
           </h2>
-          <p style={{ color: '#ccc', marginBottom: 20 }}>
+          <p style={{ color: '#ccc', marginBottom: '20px', fontSize: '14px' }}>
             Have questions? We're here to help!
           </p>
           <div
+            className="support-contacts"
             style={{
               display: 'flex',
               justifyContent: 'center',
-              gap: 20,
+              gap: '20px',
               flexWrap: 'wrap',
             }}
           >
             <div
               style={{
                 background: '#000000',
-                borderRadius: 12,
+                borderRadius: '12px',
                 padding: '15px 25px',
               }}
             >
-              <div style={{ fontSize: 12, color: '#aaa' }}>Call / WhatsApp</div>
-              <div style={{ fontSize: 20, fontWeight: 600, color: '#22a06b' }}>
-                0318-9023001
+              <div style={{ fontSize: '12px', color: '#aaa' }}>
+                Call / WhatsApp
+              </div>
+              <div
+                style={{
+                  fontSize: 'clamp(16px, 4vw, 20px)',
+                  fontWeight: 600,
+                  color: '#22a06b',
+                }}
+              >
+                {SUPPORT_NUMBER}
               </div>
             </div>
             <div
               style={{
                 background: '#000000',
-                borderRadius: 12,
+                borderRadius: '12px',
                 padding: '15px 25px',
               }}
             >
-              <div style={{ fontSize: 12, color: '#aaa' }}>Email</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#ff6b35' }}>
+              <div style={{ fontSize: '12px', color: '#aaa' }}>Email</div>
+              <div
+                style={{
+                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  fontWeight: 600,
+                  color: '#ff6b35',
+                }}
+              >
                 support@cashbackstore.pk
               </div>
             </div>
@@ -2614,24 +2763,37 @@ function AboutUsPage({ onNavigate }) {
         <div
           style={{
             background: '#1a1a27',
-            borderRadius: 24,
-            padding: 30,
-            marginBottom: 30,
+            borderRadius: '24px',
+            padding: 'clamp(20px, 5vw, 30px)',
+            marginBottom: '30px',
           }}
         >
           <h2
-            style={{ color: '#ff6b35', marginBottom: 20, textAlign: 'center' }}
+            style={{
+              color: '#ff6b35',
+              marginBottom: '20px',
+              textAlign: 'center',
+              fontSize: 'clamp(22px, 5vw, 28px)',
+            }}
           >
             Share Cashback Store
           </h2>
-          <p style={{ color: '#ccc', textAlign: 'center', marginBottom: 20 }}>
+          <p
+            style={{
+              color: '#ccc',
+              textAlign: 'center',
+              marginBottom: '20px',
+              fontSize: '14px',
+            }}
+          >
             Help your friends earn cashback too!
           </p>
           <div
+            className="share-buttons"
             style={{
               display: 'flex',
               justifyContent: 'center',
-              gap: 15,
+              gap: '15px',
               flexWrap: 'wrap',
             }}
           >
@@ -2645,14 +2807,15 @@ function AboutUsPage({ onNavigate }) {
               style={{
                 background: '#25D366',
                 border: 'none',
-                borderRadius: 40,
+                borderRadius: '40px',
                 padding: '12px 24px',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: '8px',
+                fontSize: 'clamp(12px, 3vw, 14px)',
               }}
             >
               📱 Share on WhatsApp
@@ -2667,14 +2830,15 @@ function AboutUsPage({ onNavigate }) {
               style={{
                 background: '#1877F2',
                 border: 'none',
-                borderRadius: 40,
+                borderRadius: '40px',
                 padding: '12px 24px',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: '8px',
+                fontSize: 'clamp(12px, 3vw, 14px)',
               }}
             >
               📘 Share on Facebook
@@ -2686,14 +2850,15 @@ function AboutUsPage({ onNavigate }) {
               style={{
                 background: '#ff6b35',
                 border: 'none',
-                borderRadius: 40,
+                borderRadius: '40px',
                 padding: '12px 24px',
                 color: 'white',
                 cursor: 'pointer',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: '8px',
+                fontSize: 'clamp(12px, 3vw, 14px)',
               }}
             >
               📋 Copy Link
@@ -2741,53 +2906,61 @@ function OrdersPage({ currentUser }) {
     return (
       <div
         className="page active"
-        style={{ textAlign: 'center', padding: 40, color: '#aaa' }}
+        style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}
       >
         Loading orders...
       </div>
     );
   return (
     <div id="orders-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
-        <div className="cart-header">📦 Meri Orders</div>
+        <div className="cart-header">📦 My Orders</div>
         {orders.length === 0 ? (
           <div className="cart-empty">
             <div className="big">📦</div>
-            <p>Aapne abhi tak koi order nahi kiya</p>
+            <p>You haven't placed any orders yet</p>
             <button className="btn btn-primary" onClick={() => navigate('/')}>
-              Shopping Shuru Karo
+              Start Shopping
             </button>
           </div>
         ) : (
           orders.map((order) => (
             <div
               key={order.id}
+              className="order-item"
               style={{
                 background: '#1a1a27',
-                borderRadius: 16,
-                padding: 20,
-                marginBottom: 20,
+                borderRadius: '16px',
+                padding: '20px',
+                marginBottom: '20px',
               }}
             >
               <div
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  marginBottom: 15,
+                  marginBottom: '15px',
+                  flexWrap: 'wrap',
+                  gap: '10px',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: '#aaa' }}>Order ID</div>
-                  <div style={{ fontSize: 13, color: '#fff' }}>
+                  <div style={{ fontSize: '12px', color: '#aaa' }}>
+                    Order ID
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#fff' }}>
                     {order.id?.slice(0, 8)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: '#aaa' }}>Date</div>
-                  <div style={{ fontSize: 13, color: '#fff' }}>
+                  <div style={{ fontSize: '12px', color: '#aaa' }}>Date</div>
+                  <div style={{ fontSize: '13px', color: '#fff' }}>
                     {order.date.toLocaleDateString()}
                   </div>
                 </div>
@@ -2795,23 +2968,28 @@ function OrdersPage({ currentUser }) {
               {order.items?.map((item, idx) => (
                 <div
                   key={idx}
-                  style={{ display: 'flex', gap: 12, marginBottom: 12 }}
+                  style={{
+                    display: 'flex',
+                    gap: '12px',
+                    marginBottom: '12px',
+                    flexWrap: 'wrap',
+                  }}
                 >
                   <img
                     src={item.img}
                     alt={item.name}
                     style={{
-                      width: 60,
-                      height: 60,
+                      width: '60px',
+                      height: '60px',
                       objectFit: 'cover',
-                      borderRadius: 8,
+                      borderRadius: '8px',
                     }}
                   />
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: '150px' }}>
                     <div style={{ fontWeight: 500, color: '#fff' }}>
                       {item.name}
                     </div>
-                    <div style={{ fontSize: 13, color: '#aaa' }}>
+                    <div style={{ fontSize: '13px', color: '#aaa' }}>
                       Qty: {item.qty} × Rs.{item.price.toLocaleString()}
                     </div>
                   </div>
@@ -2819,7 +2997,7 @@ function OrdersPage({ currentUser }) {
                     <div style={{ color: '#fff' }}>
                       Rs.{(item.price * item.qty).toLocaleString()}
                     </div>
-                    <div style={{ fontSize: 12, color: '#22a06b' }}>
+                    <div style={{ fontSize: '12px', color: '#22a06b' }}>
                       +Rs.{item.cashback * item.qty} cashback
                     </div>
                   </div>
@@ -2828,8 +3006,8 @@ function OrdersPage({ currentUser }) {
               <div
                 style={{
                   borderTop: '1px solid #333',
-                  marginTop: 12,
-                  paddingTop: 12,
+                  marginTop: '12px',
+                  paddingTop: '12px',
                 }}
               >
                 <div
@@ -2838,6 +3016,8 @@ function OrdersPage({ currentUser }) {
                     justifyContent: 'space-between',
                     fontWeight: 600,
                     color: '#fff',
+                    flexWrap: 'wrap',
+                    gap: '10px',
                   }}
                 >
                   <span>Total Amount:</span>
@@ -2848,14 +3028,23 @@ function OrdersPage({ currentUser }) {
                     display: 'flex',
                     justifyContent: 'space-between',
                     color: '#22a06b',
-                    marginTop: 5,
+                    marginTop: '5px',
+                    flexWrap: 'wrap',
+                    gap: '10px',
                   }}
                 >
                   <span>Cashback Earned ({BASE_CASHBACK_PERCENTAGE}%):</span>
                   <span>+Rs.{order.cashbackEarned?.toLocaleString()}</span>
                 </div>
                 {order.paymentDetails?.address && (
-                  <div style={{ fontSize: 12, color: '#aaa', marginTop: 8 }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#aaa',
+                      marginTop: '8px',
+                      wordBreak: 'break-word',
+                    }}
+                  >
                     📍 Delivery Address: {order.paymentDetails.address}
                   </div>
                 )}
@@ -2906,40 +3095,44 @@ function CashbackHistoryPage({ currentUser }) {
     return (
       <div
         className="page active"
-        style={{ textAlign: 'center', padding: 40, color: '#aaa' }}
+        style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}
       >
         Loading history...
       </div>
     );
   return (
     <div id="cashback-history-page" className="page active">
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px' }}>
+      <div
+        className="page-container"
+        style={{ maxWidth: '900px', margin: '0 auto', padding: '0 16px' }}
+      >
         <div className="back-btn" onClick={() => navigate('/')}>
-          ← Wapas Jao
+          ← Go Back
         </div>
         <div className="cart-header">💰 Cashback History</div>
         {cashbackEntries.length === 0 ? (
           <div className="cart-empty">
             <div className="big">💰</div>
-            <p>Abhi tak koi cashback nahi mila</p>
+            <p>No cashback earned yet</p>
             <button className="btn btn-primary" onClick={() => navigate('/')}>
-              Shopping Karo
+              Start Shopping
             </button>
           </div>
         ) : (
           cashbackEntries.map((entry) => (
             <div
               key={entry.id}
+              className="cashback-entry"
               style={{
                 background: '#1a1a27',
-                borderRadius: 12,
-                padding: 15,
-                marginBottom: 12,
+                borderRadius: '12px',
+                padding: '15px',
+                marginBottom: '12px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: 10,
+                gap: '10px',
               }}
             >
               <div>
@@ -2954,18 +3147,18 @@ function CashbackHistoryPage({ currentUser }) {
                           ? 'Withdrawal'
                           : 'Other'}
                 </div>
-                <div style={{ fontSize: 12, color: '#aaa' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>
                   {entry.date.toLocaleDateString()}
                 </div>
                 {entry.description && (
-                  <div style={{ fontSize: 11, color: '#aaa' }}>
+                  <div style={{ fontSize: '11px', color: '#aaa' }}>
                     {entry.description}
                   </div>
                 )}
               </div>
               <div
                 style={{
-                  fontSize: 18,
+                  fontSize: '18px',
                   fontWeight: 600,
                   color: entry.amount > 0 ? '#22a06b' : '#c0392b',
                 }}
@@ -2998,11 +3191,12 @@ function LiveBalanceMarquee() {
   const scrollingItems = [...withdrawalMessages, ...withdrawalMessages];
   return (
     <div
+      className="marquee-container"
       style={{
         background: 'linear-gradient(90deg, #1a1a27, #0f0f1a, #1a1a27)',
         padding: '12px 20px',
-        borderRadius: 40,
-        margin: '0 20px 20px 20px',
+        borderRadius: '40px',
+        margin: '0 16px 20px 16px',
         textAlign: 'center',
         border: '1px solid rgba(255,107,53,0.3)',
         boxShadow: '0 0 10px rgba(255,107,53,0.2)',
@@ -3016,7 +3210,7 @@ function LiveBalanceMarquee() {
         style={{
           display: 'inline-flex',
           gap: '40px',
-          fontSize: '14px',
+          fontSize: 'clamp(12px, 3vw, 14px)',
           fontWeight: 500,
           animation: 'marquee 25s linear infinite',
           whiteSpace: 'nowrap',
@@ -3028,7 +3222,27 @@ function LiveBalanceMarquee() {
           </span>
         ))}
       </div>
-      <style>{`@keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } } .marquee-track:hover { animation-play-state: paused; } @media (max-width: 768px) { .marquee-track { animation-duration: 35s; gap: 25px; } }`}</style>
+      <style>{`
+        @keyframes marquee { 
+          0% { transform: translateX(0%); } 
+          100% { transform: translateX(-50%); } 
+        } 
+        .marquee-track:hover { animation-play-state: paused; } 
+        @media (max-width: 768px) { 
+          .marquee-track { animation-duration: 35s; gap: 25px; } 
+        }
+        .profile-phone {
+          display: inline-block;
+        }
+        @media (max-width: 480px) {
+          .profile-phone {
+            display: none;
+          }
+          .profile-btn {
+            padding: 7px 10px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -3058,11 +3272,11 @@ function InfoCards({ onNavigate }) {
       link: '/about',
     },
     {
-      icon: '🛡️',
-      title: 'Support',
+      icon: '📞',
+      title: 'Contact Us',
       description: '24/7 customer support',
       color: '#a855f7',
-      link: '/about',
+      link: '/contact',
     },
     {
       icon: '💰',
@@ -3078,14 +3292,22 @@ function InfoCards({ onNavigate }) {
       color: '#22a06b',
       link: '/refer',
     },
+    {
+      icon: '👥',
+      title: 'My Referrals',
+      description: 'View your referred friends',
+      color: '#cf7808',
+      link: '/my-referrals',
+    },
   ];
   return (
     <div
+      className="info-cards"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
         gap: '16px',
-        margin: '30px 20px',
+        margin: '30px 16px',
         padding: '0',
       }}
     >
@@ -3093,9 +3315,10 @@ function InfoCards({ onNavigate }) {
         <div
           key={idx}
           onClick={() => onNavigate(card.link)}
+          className="info-card"
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: 20,
+            borderRadius: '20px',
             padding: '20px 15px',
             textAlign: 'center',
             cursor: 'pointer',
@@ -3117,7 +3340,7 @@ function InfoCards({ onNavigate }) {
           </div>
           <div
             style={{
-              fontSize: '16px',
+              fontSize: 'clamp(14px, 4vw, 16px)',
               fontWeight: 600,
               color: card.color,
               marginBottom: '8px',
@@ -3152,6 +3375,7 @@ function AppShell() {
   const toastTimerRef = useRef(null);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderCashbackTotal, setOrderCashbackTotal] = useState(0);
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -3172,7 +3396,6 @@ function AppShell() {
     if (uid && phone) {
       setCurrentUser({ uid, phone });
       loadUserStats(uid);
-      // Update last login time for referral tracking
       updateLastLoginTime(uid, phone);
     } else {
       setCurrentUser(null);
@@ -3180,10 +3403,8 @@ function AppShell() {
     }
   }, []);
 
-  // Update last login time for referral tracking
   const updateLastLoginTime = async (uid, phone) => {
     try {
-      // Find who referred this user
       const referralsQuery = query(
         ref(rtdb, 'referrals'),
         orderByChild('referredUser'),
@@ -3191,10 +3412,8 @@ function AppShell() {
       );
       const snapshot = await get(referralsQuery);
       if (snapshot.exists()) {
-        // Update the referral record with login time
         snapshot.forEach((childSnapshot) => {
           const referrerUid = childSnapshot.key;
-          const referralId = Object.keys(childSnapshot.val())[0];
           update(ref(rtdb, `referrals/${referrerUid}/${uid}`), {
             lastLoginAt: Date.now(),
           });
@@ -3226,8 +3445,9 @@ function AppShell() {
       if (userSnap.exists()) {
         referBonus = userSnap.val().referBonus || 0;
         totalInvested = userSnap.val().totalInvested || 0;
+        const userCashback = userSnap.val().totalCashback || 0;
+        totalCashback = userCashback;
       }
-      totalCashback += referBonus;
       setUserStats({ totalOrders, totalCashback, referBonus, totalInvested });
     } catch (error) {
       console.error('Error loading user stats:', error);
@@ -3240,12 +3460,12 @@ function AppShell() {
     localStorage.removeItem('cbUid');
     localStorage.removeItem('cbPhone');
     setCurrentUser(null);
-    showToast('Logout ho gaye!');
+    showToast('Logged out successfully!');
     navigate('/');
   };
 
   const referLink = useMemo(() => {
-    if (!currentUser?.phone) return 'Login karo...';
+    if (!currentUser?.phone) return 'Login to get link...';
     const digits = phoneDigitsForQuery(currentUser.phone);
     return `${window.location.origin}/?ref=${encodeURIComponent(digits)}`;
   }, [currentUser]);
@@ -3255,32 +3475,40 @@ function AppShell() {
       await navigator.clipboard.writeText(text);
       showToast(okMsg);
     } catch {
-      showToast('Copy nahi ho saka');
+      showToast('Failed to copy');
     }
   };
 
   const copyReferLink = () => {
     if (!currentUser) {
-      showToast('Pehle login karo!');
+      showToast('Please login first!');
       navigate('/login');
       return;
     }
-    copyText(referLink, '🔗 Refer link copy ho gaya!');
+    copyText(referLink, '🔗 Referral link copied!');
   };
 
   const placeOrder = async (product, paymentMethod, paymentDetails) => {
     if (!currentUser) {
-      showToast('Pehle login karo!');
+      showToast('Please login first!');
       navigate('/login');
       return;
     }
     if (!product) {
-      showToast('Product select karo');
+      showToast('Please select a product');
       return;
     }
+
+    if (isProcessingOrder) {
+      showToast('Please wait, order is being processed...');
+      return;
+    }
+
+    setIsProcessingOrder(true);
     const orderItems = [{ ...product, qty: 1 }];
     const subtotal = product.price;
     const cashbackTotal = product.cashback;
+
     try {
       const orderId = push(ref(rtdb, `orders/${currentUser.uid}`)).key;
       await set(ref(rtdb, `orders/${currentUser.uid}/${orderId}`), {
@@ -3294,6 +3522,7 @@ function AppShell() {
         timestamp: Date.now(),
         status: 'pending',
       });
+
       await set(ref(rtdb, `cashbackHistory/${currentUser.uid}/${orderId}`), {
         type: 'order',
         amount: cashbackTotal,
@@ -3302,7 +3531,6 @@ function AppShell() {
         timestamp: Date.now(),
       });
 
-      // Update user stats
       const userRef = ref(rtdb, `users/${currentUser.uid}`);
       const userSnap = await get(userRef);
       const currentStats = userSnap.exists() ? userSnap.val() : {};
@@ -3314,7 +3542,6 @@ function AppShell() {
         lastOrderDate: Date.now(),
       });
 
-      // Update referral record with order info
       try {
         const referralsQuery = query(
           ref(rtdb, 'referrals'),
@@ -3335,7 +3562,6 @@ function AppShell() {
         console.error('Error updating referral order:', err);
       }
 
-      // Process referral bonus
       const referrerPhone = localStorage.getItem('cbRef');
       if (referrerPhone) {
         const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
@@ -3375,14 +3601,19 @@ function AppShell() {
           });
         }
       }
+
       await loadUserStats(currentUser.uid);
       setLastOrderItems(orderItems);
       setLastOrderAmount(subtotal);
       setOrderCashbackTotal(cashbackTotal);
       setOrderModalOpen(true);
+
+      showToast('✅ Order placed successfully!');
     } catch (error) {
       console.error('Error placing order:', error);
-      showToast('Order place karne mein error aa gaya');
+      showToast('Error placing order');
+    } finally {
+      setIsProcessingOrder(false);
     }
   };
 
@@ -3398,7 +3629,7 @@ function AppShell() {
           `• ${i.name} ×${i.qty} = Rs.${(i.price * i.qty).toLocaleString()}`,
       )
       .join('\n');
-    const msg = `Assalam o Alaikum!\n\nMera order confirm karna hai:\n\n${items}\n\nTotal: Rs. ${lastOrderAmount.toLocaleString()}\n\nPayment: EasyPaisa ${EP_DISPLAY}\n\nCashback: ${BASE_CASHBACK_PERCENTAGE}% (Rs. ${orderCashbackTotal.toLocaleString()})\n\nInvestment: Earn ${INVESTMENT_RETURN_PERCENTAGE}% on cashback!`;
+    const msg = `Hello!\n\nMy order confirmation:\n\n${items}\n\nTotal: Rs. ${lastOrderAmount.toLocaleString()}\n\nPayment: EasyPaisa ${EP_DISPLAY}\n\nCashback: ${BASE_CASHBACK_PERCENTAGE}% (Rs. ${orderCashbackTotal.toLocaleString()})\n\nInvestment: Earn ${INVESTMENT_RETURN_PERCENTAGE}% on cashback!`;
     const r = localStorage.getItem('cbRef');
     const extra = r ? `\nReferral: ${r}` : '';
     window.open(
@@ -3410,7 +3641,7 @@ function AppShell() {
 
   return (
     <>
-      <nav>
+      <nav className="navbar">
         <div className="logo" onClick={() => navigate('/')}>
           Cash<span>back</span> Store
         </div>
@@ -3457,6 +3688,7 @@ function AppShell() {
               onCopyRefer={copyReferLink}
               onPlaceOrder={placeOrder}
               currentUser={currentUser}
+              isProcessingOrder={isProcessingOrder}
             />
           }
         />
@@ -3545,6 +3777,10 @@ function AppShell() {
           element={<MyReferralsPage currentUser={currentUser} />}
         />
         <Route path="/about" element={<AboutUsPage onNavigate={navigate} />} />
+        <Route
+          path="/contact"
+          element={<ContactUsPage onNavigate={navigate} />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <div
@@ -3555,29 +3791,30 @@ function AppShell() {
         {orderModalOpen && (
           <div className="modal">
             <div className="modal-icon">🎉</div>
-            <h2>Order Confirm!</h2>
+            <h2>Order Confirmed!</h2>
             <p>
-              <strong style={{ color: 'var(--green)' }}>{EP_DISPLAY}</strong> pe
-              EasyPaisa se payment bhejo.
+              Send payment to{' '}
+              <strong style={{ color: 'var(--green)' }}>{EP_DISPLAY}</strong>{' '}
+              via EasyPaisa.
               <br />
               <br />
-              Screenshot WhatsApp pe bhejo:{' '}
+              Send screenshot on WhatsApp:{' '}
               <strong style={{ color: 'var(--accent2)' }}>{EP_DISPLAY}</strong>
               <br />
               <br />
-              Tumhara{' '}
+              Your{' '}
               <strong style={{ color: 'var(--accent2)' }}>
                 Rs. {orderCashbackTotal.toLocaleString()}
               </strong>{' '}
-              cashback ({BASE_CASHBACK_PERCENTAGE}% of total) 24 ghante mein aa
-              jayega! 💰
+              cashback ({BASE_CASHBACK_PERCENTAGE}% of total) will be credited
+              within 24 hours! 💰
               <br />
               <br />
-              Refer bonus:{' '}
+              Referral bonus:{' '}
               <strong style={{ color: 'var(--green)' }}>
                 Rs. {REFER_BONUS.toLocaleString()}
               </strong>{' '}
-              (jab dost order kare).
+              (when friend places order).
               <br />
               <br />
               💡 Tip: Invest your cashback to earn{' '}
@@ -3594,7 +3831,7 @@ function AppShell() {
           </div>
         )}
       </div>
-      <footer>
+      <footer className="footer">
         <span>© {new Date().getFullYear()} Cashback Store Pakistan</span>
         <span>💚 {BASE_CASHBACK_PERCENTAGE}% Cashback on Every Purchase!</span>
         <span>📈 {INVESTMENT_RETURN_PERCENTAGE}% Returns on Investment</span>
@@ -3623,12 +3860,13 @@ function AppShell() {
       <div className="page active">
         <section className="hero">
           <div className="cb-banner">
-            <span className="dot"></span> Cashback Store official portal
+            <span className="dot"></span> Cashback Store Official Portal
           </div>
           <div
+            className="user-info-bar"
             style={{
               background: 'rgba(0,0,0,0.3)',
-              borderRadius: 16,
+              borderRadius: '16px',
               padding: '12px 20px',
               margin: '15px 0',
               display: 'flex',
@@ -3742,7 +3980,7 @@ function AppShell() {
               <div style={{ padding: '0 14px 14px' }}>
                 <button
                   className="add-cart-btn"
-                  style={{ width: '100%', padding: 9 }}
+                  style={{ width: '100%', padding: '9px' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate(`/product/${p.id}`);
@@ -3771,13 +4009,13 @@ function AppShell() {
         <div className="page active">
           <div id="detail-page">
             <div className="back-btn" onClick={() => navigate('/')}>
-              ← Wapas Jao
+              ← Go Back
             </div>
             <div className="cart-empty">
               <div className="big">❌</div>
-              <p>Product nahi mila.</p>
+              <p>Product not found.</p>
               <button className="btn btn-primary" onClick={() => navigate('/')}>
-                Products Dekho
+                View Products
               </button>
             </div>
           </div>
@@ -3789,7 +4027,7 @@ function AppShell() {
       <div id="detail-page" className="page active">
         <div style={{ padding: '0' }}>
           <div className="back-btn" onClick={() => navigate('/')}>
-            ← Wapas Jao
+            ← Go Back
           </div>
           <div className="detail-layout">
             <div className="det-img">
@@ -3811,7 +4049,11 @@ function AppShell() {
               </div>
               <div
                 className="det-cashback"
-                style={{ color: '#22a06b', marginBottom: 10, fontSize: 14 }}
+                style={{
+                  color: '#22a06b',
+                  marginBottom: '10px',
+                  fontSize: '14px',
+                }}
               >
                 💰 Cashback: {BASE_CASHBACK_PERCENTAGE}% (Rs.{' '}
                 {p.cashback.toLocaleString()})
@@ -3820,29 +4062,35 @@ function AppShell() {
               <div
                 style={{
                   background: '#1a1a27',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginTop: 20,
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginTop: '20px',
                 }}
               >
-                <h3 style={{ marginBottom: 15, fontSize: 16, color: '#fff' }}>
+                <h3
+                  style={{
+                    marginBottom: '15px',
+                    fontSize: '16px',
+                    color: '#fff',
+                  }}
+                >
                   📈 Investment Details
                 </h3>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 12,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                    gap: '12px',
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>Cycle</div>
+                    <div style={{ fontSize: '12px', color: '#aaa' }}>Cycle</div>
                     <div style={{ fontWeight: 600, color: '#fff' }}>
                       {cycleDays} Days
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
+                    <div style={{ fontSize: '12px', color: '#aaa' }}>
                       Rate of Return
                     </div>
                     <div style={{ fontWeight: 600, color: '#22a06b' }}>
@@ -3850,7 +4098,7 @@ function AppShell() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
+                    <div style={{ fontSize: '12px', color: '#aaa' }}>
                       Daily Profit (est.)
                     </div>
                     <div style={{ fontWeight: 600, color: '#ff6b35' }}>
@@ -3858,7 +4106,7 @@ function AppShell() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, color: '#aaa' }}>
+                    <div style={{ fontSize: '12px', color: '#aaa' }}>
                       Total Profit
                     </div>
                     <div style={{ fontWeight: 600, color: '#22a06b' }}>
@@ -3868,10 +4116,10 @@ function AppShell() {
                 </div>
                 <div
                   style={{
-                    marginTop: 15,
-                    height: 8,
+                    marginTop: '15px',
+                    height: '8px',
                     background: '#333',
-                    borderRadius: 4,
+                    borderRadius: '4px',
                     overflow: 'hidden',
                   }}
                 >
@@ -3880,7 +4128,7 @@ function AppShell() {
                       width: `${(dailyProfit / ((p.price * returnPercentage) / 100 / cycleDays)) * 100}%`,
                       height: '100%',
                       background: '#ff6b35',
-                      borderRadius: 4,
+                      borderRadius: '4px',
                     }}
                   />
                 </div>
@@ -3895,9 +4143,9 @@ function AppShell() {
                 className="btn btn-outline"
                 style={{
                   width: '100%',
-                  padding: 12,
-                  borderRadius: 12,
-                  marginTop: 10,
+                  padding: '12px',
+                  borderRadius: '12px',
+                  marginTop: '10px',
                 }}
                 onClick={() => navigate(`/payment/${p.id}`)}
               >
@@ -3917,12 +4165,15 @@ function AppShell() {
     onCopyRefer,
     onPlaceOrder,
     currentUser,
+    isProcessingOrder,
   }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const [address, setAddress] = useState('');
     const [screenshot, setScreenshot] = useState(null);
     const [screenshotPreview, setScreenshotPreview] = useState('');
+    const [orderLoading, setOrderLoading] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState('easypaisa');
     const product = useMemo(
       () => PRODUCTS.find((x) => String(x.id) === String(id)) || null,
       [id],
@@ -3931,7 +4182,7 @@ function AppShell() {
     if (!product)
       return (
         <div id="cart-page" className="page active">
-          <div style={{ padding: '0', maxWidth: 780, margin: '0 auto' }}>
+          <div style={{ padding: '0', maxWidth: '780px', margin: '0 auto' }}>
             <div className="back-btn" onClick={() => navigate('/')}>
               ← Back to Products
             </div>
@@ -3969,25 +4220,35 @@ function AppShell() {
         alert('Please upload payment screenshot');
         return;
       }
+      if (orderLoading || isProcessingOrder) {
+        alert('Please wait, order is being processed...');
+        return;
+      }
 
+      setOrderLoading(true);
       try {
         const base64Image = await compressImage(screenshot);
-        onPlaceOrder(product, 'easypaisa', {
+        await onPlaceOrder(product, paymentMethod, {
           address,
           screenshotUrl: base64Image,
+          paymentMethod,
         });
+        navigate('/');
       } catch (error) {
         console.error('Error processing screenshot:', error);
-        alert('Failed to process screenshot');
+        alert('Failed to process screenshot: ' + error.message);
+      } finally {
+        setOrderLoading(false);
       }
     };
+
     return (
       <div id="cart-page" className="page active">
-        <div style={{ padding: '0', maxWidth: 780, margin: '0 auto' }}>
+        <div style={{ padding: '0', maxWidth: '780px', margin: '0 auto' }}>
           <div className="back-btn" onClick={() => navigate('/')}>
             ← Back to Products
           </div>
-          <div className="cart-item" style={{ marginBottom: 14 }}>
+          <div className="cart-item" style={{ marginBottom: '14px' }}>
             <div className="ci-img">
               <img
                 src={product.img}
@@ -4004,7 +4265,11 @@ function AppShell() {
                 Rs. {product.price.toLocaleString()}
               </div>
               <div
-                style={{ color: '#22a06b', fontSize: '.86rem', marginTop: 6 }}
+                style={{
+                  color: '#22a06b',
+                  fontSize: '.86rem',
+                  marginTop: '6px',
+                }}
               >
                 Cashback: Rs. {product.cashback.toLocaleString()}
               </div>
@@ -4043,32 +4308,102 @@ function AppShell() {
               </span>
             </div>
           </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label
+              style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}
+            >
+              Select Payment Method
+            </label>
+            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setPaymentMethod('easypaisa')}
+                style={{
+                  flex: 1,
+                  minWidth: '120px',
+                  background:
+                    paymentMethod === 'easypaisa' ? '#22a06b' : '#0f0f1a',
+                  border:
+                    paymentMethod === 'easypaisa' ? 'none' : '1px solid #333',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                📱 EasyPaisa
+              </button>
+              <button
+                onClick={() => setPaymentMethod('jazzcash')}
+                style={{
+                  flex: 1,
+                  minWidth: '120px',
+                  background:
+                    paymentMethod === 'jazzcash' ? '#ff6b35' : '#0f0f1a',
+                  border:
+                    paymentMethod === 'jazzcash' ? 'none' : '1px solid #333',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                💳 JazzCash
+              </button>
+            </div>
+          </div>
+
           <div className="ep-pay-box">
             <div
               style={{
                 background: '#000',
-                borderRadius: 12,
-                padding: 20,
+                borderRadius: '12px',
+                padding: '20px',
                 textAlign: 'center',
-                marginBottom: 20,
+                marginBottom: '20px',
               }}
             >
-              <div style={{ fontSize: 14, color: '#aaa', marginBottom: 5 }}>
-                Send payment to (EasyPaisa / JazzCash)
+              <div
+                style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
+              >
+                Send payment to{' '}
+                {paymentMethod === 'easypaisa' ? 'EasyPaisa' : 'JazzCash'}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#ff6b35' }}>
+              <div
+                style={{
+                  fontSize: 'clamp(22px, 6vw, 28px)',
+                  fontWeight: 700,
+                  color: '#ff6b35',
+                }}
+              >
                 Mubariz
               </div>
-              <div style={{ fontSize: 22, fontWeight: 600, color: '#22a06b' }}>
-                0318-9023001
+              <div
+                style={{
+                  fontSize: 'clamp(18px, 5vw, 22px)',
+                  fontWeight: 600,
+                  color: '#22a06b',
+                }}
+              >
+                {paymentMethod === 'easypaisa'
+                  ? EASYPAISA_NUMBER
+                  : JAZZCASH_NUMBER}
               </div>
-              <div style={{ fontSize: 16, color: '#ff6b35', marginTop: 10 }}>
+              <div
+                style={{
+                  fontSize: '16px',
+                  color: '#ff6b35',
+                  marginTop: '10px',
+                }}
+              >
                 Amount: Rs. {product.price.toLocaleString()}
               </div>
             </div>
-            <div style={{ marginBottom: 15 }}>
+            <div style={{ marginBottom: '15px' }}>
               <label
-                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
+                style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}
               >
                 Complete Delivery Address
               </label>
@@ -4081,15 +4416,15 @@ function AppShell() {
                   width: '100%',
                   background: '#0f0f1a',
                   border: '1px solid #333',
-                  borderRadius: 12,
+                  borderRadius: '12px',
                   padding: '14px 16px',
                   color: '#fff',
                 }}
               />
             </div>
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: '20px' }}>
               <label
-                style={{ display: 'block', marginBottom: 8, color: '#ccc' }}
+                style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}
               >
                 Upload Payment Screenshot
               </label>
@@ -4104,11 +4439,11 @@ function AppShell() {
                   src={screenshotPreview}
                   alt="Preview"
                   style={{
-                    marginTop: 10,
+                    marginTop: '10px',
                     width: '100%',
-                    maxHeight: 150,
+                    maxHeight: '150px',
                     objectFit: 'cover',
-                    borderRadius: 8,
+                    borderRadius: '8px',
                   }}
                 />
               )}
@@ -4122,7 +4457,7 @@ function AppShell() {
                 className="btn btn-green"
                 onClick={onCopyRefer}
                 style={{
-                  borderRadius: 9,
+                  borderRadius: '9px',
                   fontSize: '.82rem',
                   whiteSpace: 'nowrap',
                 }}
@@ -4131,19 +4466,28 @@ function AppShell() {
               </button>
             </div>
           </div>
-          <button className="place-order-btn" onClick={handlePlaceOrder}>
-            Buy now
+          <button
+            className="place-order-btn"
+            onClick={handlePlaceOrder}
+            disabled={orderLoading || isProcessingOrder}
+            style={{
+              opacity: orderLoading || isProcessingOrder ? 0.6 : 1,
+              cursor:
+                orderLoading || isProcessingOrder ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {orderLoading ? 'Processing...' : 'Buy now'}
           </button>
           {!currentUser && (
             <p
               style={{
-                marginTop: 10,
+                marginTop: '10px',
                 color: '#aaa',
                 fontSize: '.78rem',
                 textAlign: 'center',
               }}
             >
-              Payment confirm karne ke liye login zaroori hai.
+              Login required to confirm payment.
             </p>
           )}
         </div>
@@ -4173,11 +4517,11 @@ function AppShell() {
       setStatus('');
       const normalizedPhone = normalizePakistanPhone(phone);
       if (!normalizedPhone) {
-        setStatus('⚠️ Number format galat — +923001234567 likho');
+        setStatus('⚠️ Invalid number format — Use +923001234567');
         return;
       }
       if (!password || password.length < 6) {
-        setStatus('⚠️ Password 6+ characters rakho');
+        setStatus('⚠️ Password must be at least 6 characters');
         return;
       }
       try {
@@ -4185,23 +4529,22 @@ function AppShell() {
         const phoneKey = phoneDigitsForQuery(normalizedPhone);
         const uidSnap = await get(child(ref(rtdb), `usersByPhone/${phoneKey}`));
         if (!uidSnap.exists()) {
-          setStatus('❌ Account nahi mila. Pehle signup karo.');
+          setStatus('❌ Account not found. Please sign up first.');
           return;
         }
         const uid = uidSnap.val();
         const userSnap = await get(child(ref(rtdb), `users/${uid}`));
         const data = userSnap.exists() ? userSnap.val() : null;
         if (!data) {
-          setStatus('❌ Account data nahi mila. Dobara signup karo.');
+          setStatus('❌ Account data not found. Please sign up again.');
           return;
         }
         const ok = await bcrypt.compare(password, data.passwordHash || '');
         if (!ok) {
-          setStatus('❌ Password galat hai');
+          setStatus('❌ Incorrect password');
           return;
         }
 
-        // Update last login time for referral tracking
         try {
           const referralsQuery = query(
             ref(rtdb, 'referrals'),
@@ -4225,7 +4568,7 @@ function AppShell() {
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
         await loadUserStats(uid);
-        setStatus('🎉 Login ho gaya!');
+        setStatus('🎉 Login successful!');
         onLoginComplete?.();
       } catch {
         setStatus('❌ Login failed.');
@@ -4239,10 +4582,12 @@ function AppShell() {
           <div className="llogo">
             Cash<span>back</span> Store
           </div>
-          <p className="login-sub">Phone number + password se login karo.</p>
+          <p className="login-sub">
+            Login with your phone number and password.
+          </p>
           <form onSubmit={submit}>
             <div className="inp-group">
-              <label>📱 Phone Numbers</label>
+              <label>📱 Phone Number</label>
               <input
                 type="tel"
                 value={phone}
@@ -4252,7 +4597,7 @@ function AppShell() {
               />
             </div>
             <div className="phone-hint">
-              ⚠️ +92 ke saath likho — jaise{' '}
+              ⚠️ Use format with +92 — e.g.,{' '}
               <strong style={{ color: '#ff6b35' }}>+923001234567</strong>
             </div>
             <div className="inp-group">
@@ -4300,15 +4645,15 @@ function AppShell() {
       setStatus('');
       const normalizedPhone = normalizePakistanPhone(phone);
       if (!normalizedPhone) {
-        setStatus('⚠️ Number format galat — +923001234567 likho');
+        setStatus('⚠️ Invalid number format — Use +923001234567');
         return;
       }
       if (!password || password.length < 6) {
-        setStatus('⚠️ Password 6+ characters rakho');
+        setStatus('⚠️ Password must be at least 6 characters');
         return;
       }
       if (password !== confirmPassword) {
-        setStatus('⚠️ Password match nahi kar rahe');
+        setStatus('⚠️ Passwords do not match');
         return;
       }
       try {
@@ -4316,7 +4661,7 @@ function AppShell() {
         const phoneKey = phoneDigitsForQuery(normalizedPhone);
         const uidSnap = await get(child(ref(rtdb), `usersByPhone/${phoneKey}`));
         if (uidSnap.exists()) {
-          setStatus('❌ Ye number pehle se registered hai. Login karo.');
+          setStatus('❌ This number is already registered. Please login.');
           return;
         }
         const passwordHash = await bcrypt.hash(password, 10);
@@ -4332,7 +4677,6 @@ function AppShell() {
         });
         await set(ref(rtdb, `usersByPhone/${phoneKey}`), uid);
 
-        // Track referral on signup
         const referrerPhone = localStorage.getItem('cbRef');
         if (referrerPhone) {
           const referrerPhoneKey = phoneDigitsForQuery(referrerPhone);
@@ -4356,7 +4700,7 @@ function AppShell() {
         localStorage.setItem('cbPhone', normalizedPhone);
         setCurrentUser({ uid, phone: normalizedPhone });
         await loadUserStats(uid);
-        setStatus('🎉 Account created!');
+        setStatus('🎉 Account created successfully!');
         onSignupComplete?.();
         navigate('/');
       } catch (err) {
@@ -4371,7 +4715,9 @@ function AppShell() {
           <div className="llogo">
             Cash<span>back</span> Store
           </div>
-          <p className="login-sub">Signup ke liye phone + password use karo.</p>
+          <p className="login-sub">
+            Sign up using your phone number and password.
+          </p>
           <form onSubmit={submit}>
             <div className="inp-group">
               <label>📱 Phone Number</label>
@@ -4384,7 +4730,7 @@ function AppShell() {
               />
             </div>
             <div className="phone-hint">
-              ⚠️ +92 ke saath likho — jaise{' '}
+              ⚠️ Use format with +92 — e.g.,{' '}
               <strong style={{ color: '#ff6b35' }}>+923001234567</strong>
             </div>
             <div className="inp-group">
@@ -4415,7 +4761,7 @@ function AppShell() {
               type="button"
               onClick={() => navigate('/login')}
             >
-              Already have account? Login
+              Already have an account? Login
             </button>
             <div
               className={`status-msg ${status.includes('❌') || status.includes('⚠️') ? 'error' : ''}`}
