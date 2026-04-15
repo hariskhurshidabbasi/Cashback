@@ -41,10 +41,12 @@ const REFER_BONUS = 1500;
 const INVESTMENT_RETURN_PERCENTAGE = 12;
 const MIN_WITHDRAWAL_AMOUNT = 500;
 
-// Updated Payment Numbers
+// Updated Payment Numbers and Names
 const EASYPAISA_NUMBER = '03480954733';
 const JAZZCASH_NUMBER = '03135259363';
 const SUPPORT_NUMBER = '03340397691';
+const EASYPAISA_NAME = 'Mubaraz aqaldad';
+const JAZZCASH_NAME = 'Mubariz aqaldad';
 
 // EmailJS Configuration
 const EMAILJS_SERVICE_ID = 'service_7h2936w';
@@ -727,7 +729,7 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
         className="page-container"
         style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 16px' }}
       >
-        <div className="back-btn" onClick={() => navigate('/')}>
+        <div className="back-btn" onClick={() => navigate('/investment')}>
           ← Go Back
         </div>
         <div className="cart-header">💰 Investment Plans</div>
@@ -784,7 +786,7 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
               <div
                 style={{
                   fontSize: '14px',
-                  color: '#ff6b35',
+                  color: '#ede9e7',
                   marginBottom: '5px',
                 }}
               >
@@ -888,7 +890,7 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
                   color: '#ff6b35',
                 }}
               >
-                Mubariz
+                {paymentMethod === 'easypaisa' ? EASYPAISA_NAME : JAZZCASH_NAME}
               </div>
               <div
                 style={{
@@ -3370,7 +3372,7 @@ function LiveBalanceMarquee() {
 }
 
 // Info Cards Component
-function InfoCards({ onNavigate }) {
+function InfoCards({ onNavigate, showInfoCards, setShowInfoCards }) {
   const cards = [
     {
       icon: '🏦',
@@ -3422,6 +3424,9 @@ function InfoCards({ onNavigate }) {
       link: '/my-referrals',
     },
   ];
+
+  if (!showInfoCards) return null;
+
   return (
     <div
       className="info-cards"
@@ -3436,7 +3441,10 @@ function InfoCards({ onNavigate }) {
       {cards.map((card, idx) => (
         <div
           key={idx}
-          onClick={() => onNavigate(card.link)}
+          onClick={() => {
+            setShowInfoCards(false);
+            onNavigate(card.link);
+          }}
           className="info-card"
           style={{
             background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
@@ -3498,6 +3506,7 @@ function AppShell() {
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderCashbackTotal, setOrderCashbackTotal] = useState(0);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const [showInfoCards, setShowInfoCards] = useState(true);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -3524,6 +3533,13 @@ function AppShell() {
       setLoadingStats(false);
     }
   }, []);
+
+  // Show info cards when navigating to home page
+  useEffect(() => {
+    if (location.pathname === '/') {
+      setShowInfoCards(true);
+    }
+  }, [location.pathname]);
 
   const updateLastLoginTime = async (uid, phone) => {
     try {
@@ -3583,6 +3599,7 @@ function AppShell() {
     localStorage.removeItem('cbPhone');
     setCurrentUser(null);
     showToast('Logged out successfully!');
+    setShowInfoCards(true);
     navigate('/');
   };
 
@@ -3761,10 +3778,21 @@ function AppShell() {
     closeOrderModal();
   };
 
+  const handleNavigate = (path) => {
+    setShowInfoCards(false);
+    navigate(path);
+  };
+
   return (
     <>
       <nav className="navbar">
-        <div className="logo" onClick={() => navigate('/')}>
+        <div
+          className="logo"
+          onClick={() => {
+            setShowInfoCards(true);
+            navigate('/');
+          }}
+        >
           Cash<span>back</span> Store
         </div>
         <div className="nav-right">
@@ -3773,14 +3801,17 @@ function AppShell() {
               <ProfileDropdown
                 currentUser={currentUser}
                 onLogout={logout}
-                onNavigate={navigate}
+                onNavigate={handleNavigate}
                 userStats={userStats}
                 loadingStats={loadingStats}
               />
             ) : (
               <button
                 className="btn btn-primary"
-                onClick={() => navigate('/login')}
+                onClick={() => {
+                  setShowInfoCards(false);
+                  navigate('/login');
+                }}
               >
                 Login
               </button>
@@ -3789,7 +3820,11 @@ function AppShell() {
         </div>
       </nav>
       <LiveBalanceMarquee />
-      <InfoCards onNavigate={navigate} />
+      <InfoCards
+        onNavigate={handleNavigate}
+        showInfoCards={showInfoCards}
+        setShowInfoCards={setShowInfoCards}
+      />
       <div
         id="toast"
         className={toast ? 'show' : ''}
@@ -3819,7 +3854,10 @@ function AppShell() {
           element={
             <LoginPage
               currentUser={currentUser}
-              onLoginComplete={() => navigate('/')}
+              onLoginComplete={() => {
+                setShowInfoCards(true);
+                navigate('/');
+              }}
               setCurrentUser={setCurrentUser}
               loadUserStats={loadUserStats}
             />
@@ -3829,7 +3867,10 @@ function AppShell() {
           path="/signup"
           element={
             <SignupPage
-              onSignupComplete={() => navigate('/')}
+              onSignupComplete={() => {
+                setShowInfoCards(true);
+                navigate('/');
+              }}
               setCurrentUser={setCurrentUser}
               loadUserStats={loadUserStats}
             />
@@ -3898,10 +3939,13 @@ function AppShell() {
           path="/my-referrals"
           element={<MyReferralsPage currentUser={currentUser} />}
         />
-        <Route path="/about" element={<AboutUsPage onNavigate={navigate} />} />
+        <Route
+          path="/about"
+          element={<AboutUsPage onNavigate={handleNavigate} />}
+        />
         <Route
           path="/contact"
-          element={<ContactUsPage onNavigate={navigate} />}
+          element={<ContactUsPage onNavigate={handleNavigate} />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -4500,7 +4544,7 @@ function AppShell() {
                   color: '#ff6b35',
                 }}
               >
-                Mubariz
+                {paymentMethod === 'easypaisa' ? EASYPAISA_NAME : JAZZCASH_NAME}
               </div>
               <div
                 style={{
