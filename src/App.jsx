@@ -1264,7 +1264,7 @@ function MyInvestmentsPage({ currentUser, showToast }) {
   );
 }
 
-// Withdrawal Page Component
+// Withdrawal Page Component - With Modal for Mobile
 function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('easypaisa');
@@ -1278,6 +1278,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
   const [loading, setLoading] = useState(false);
   const [withdrawals, setWithdrawals] = useState([]);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(true);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const navigate = useNavigate();
   const bankOptions = [
     'ABL',
@@ -1481,6 +1482,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         setBankAccountTitle('');
       }
 
+      setShowWithdrawModal(false);
       showToast(
         `✅ Withdrawal of Rs. ${amount.toLocaleString()} successful! New balance: Rs. ${newCashback.toLocaleString()}`,
       );
@@ -1490,6 +1492,28 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setWithdrawAmount('');
+    setEasyPaisaNumber('');
+    setEasyPaisaName('');
+    setJazzCashNumber('');
+    setJazzCashName('');
+    setSelectedBank('');
+    setBankAccountNumber('');
+    setBankAccountTitle('');
+    setPaymentMethod('easypaisa');
+  };
+
+  const openWithdrawModal = () => {
+    resetForm();
+    setShowWithdrawModal(true);
+  };
+
+  const closeWithdrawModal = () => {
+    setShowWithdrawModal(false);
+    resetForm();
   };
 
   if (!currentUser)
@@ -1525,376 +1549,474 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           ← Go Back
         </div>
         <div className="cart-header">🏦 Withdraw Cashback</div>
-        <div
-          className="withdrawal-form"
-          style={{
-            background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
-            borderRadius: '24px',
-            padding: 'clamp(20px, 5vw, 30px)',
-            marginBottom: '30px',
-          }}
-        >
-          <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '10px' }}>💸</div>
-            <h2
-              style={{
-                marginBottom: '5px',
-                color: '#ff6b35',
-                fontSize: 'clamp(20px, 5vw, 28px)',
-              }}
-            >
-              Withdraw Your Cashback
-            </h2>
-            <p style={{ color: '#ccc', fontSize: '14px' }}>
-              Select your preferred withdrawal method
-            </p>
-          </div>
-          <div
-            className="balance-box"
-            style={{
-              background: '#000000',
-              borderRadius: '16px',
-              padding: '20px',
-              marginBottom: '20px',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{ fontSize: '14px', color: '#aaa', marginBottom: '5px' }}
-            >
-              Available Balance
-            </div>
-            <div
-              style={{
-                fontSize: 'clamp(32px, 8vw, 42px)',
-                fontWeight: 700,
-                color: '#22a06b',
-              }}
-            >
-              Rs. {(userStats?.totalCashback || 0).toLocaleString()}
-            </div>
-            <div style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-              Minimum withdrawal: Rs. {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
-            </div>
-          </div>
-          <div style={{ marginBottom: '25px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '10px',
-                fontSize: '14px',
-                color: '#ccc',
-              }}
-            >
-              Select Withdrawal Method
-            </label>
-            <div
-              className="method-buttons"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                gap: '10px',
-              }}
-            >
-              {[
-                { id: 'easypaisa', label: '📱 EasyPaisa', color: '#22a06b' },
-                { id: 'jazzcash', label: '💳 JazzCash', color: '#ff6b35' },
-                { id: 'bank', label: '🏦 Bank Transfer', color: '#3b82f6' },
-              ].map((method) => (
-                <button
-                  key={method.id}
-                  onClick={() => setPaymentMethod(method.id)}
-                  className="method-btn"
-                  style={{
-                    background:
-                      paymentMethod === method.id ? method.color : '#1a1a27',
-                    border:
-                      paymentMethod === method.id ? 'none' : '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '12px',
-                    color: paymentMethod === method.id ? '#fff' : '#ccc',
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    fontSize: 'clamp(12px, 3vw, 14px)',
-                  }}
-                >
-                  {method.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {paymentMethod === 'easypaisa' && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  📱 EasyPaisa Number
-                </label>
-                <input
-                  type="tel"
-                  value={easyPaisaNumber}
-                  onChange={(e) => setEasyPaisaNumber(e.target.value)}
-                  placeholder="+923001234567"
-                  className="withdraw-input"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  👤 Account Holder Name
-                </label>
-                <input
-                  type="text"
-                  value={easyPaisaName}
-                  onChange={(e) => setEasyPaisaName(e.target.value)}
-                  placeholder="As per CNIC"
-                  className="withdraw-input"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          {paymentMethod === 'jazzcash' && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  💳 JazzCash Number
-                </label>
-                <input
-                  type="tel"
-                  value={jazzCashNumber}
-                  onChange={(e) => setJazzCashNumber(e.target.value)}
-                  placeholder="+923001234567"
-                  className="withdraw-input"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  👤 Account Holder Name
-                </label>
-                <input
-                  type="text"
-                  value={jazzCashName}
-                  onChange={(e) => setJazzCashName(e.target.value)}
-                  placeholder="As per CNIC"
-                  className="withdraw-input"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          {paymentMethod === 'bank' && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  🏦 Select Bank
-                </label>
-                <select
-                  value={selectedBank}
-                  onChange={(e) => setSelectedBank(e.target.value)}
-                  className="withdraw-select"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                >
-                  <option value="">-- Select Bank --</option>
-                  {bankOptions.map((bank) => (
-                    <option key={bank} value={bank}>
-                      {bank}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  🔢 Account Number
-                </label>
-                <input
-                  type="text"
-                  value={bankAccountNumber}
-                  onChange={(e) => setBankAccountNumber(e.target.value)}
-                  placeholder="Enter bank account number"
-                  className="withdraw-input"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: '15px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: '14px',
-                    color: '#ccc',
-                  }}
-                >
-                  📝 Account Title
-                </label>
-                <input
-                  type="text"
-                  value={bankAccountTitle}
-                  onChange={(e) => setBankAccountTitle(e.target.value)}
-                  placeholder="As per bank statement"
-                  className="withdraw-input"
-                  style={{
-                    width: '100%',
-                    background: '#1a1a27',
-                    border: '1px solid #333',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    color: '#fff',
-                    fontSize: '16px',
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          <div style={{ marginBottom: '20px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontSize: '14px',
-                color: '#ccc',
-              }}
-            >
-              💰 Withdrawal Amount
-            </label>
-            <input
-              type="number"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              placeholder={`Min. Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`}
-              className="withdraw-input"
-              style={{
-                width: '100%',
-                background: '#1a1a27',
-                border: '1px solid #333',
-                borderRadius: '12px',
-                padding: '14px 16px',
-                color: '#fff',
-                fontSize: '16px',
-              }}
-            />
-          </div>
+
+        {/* Withdrawal Button to Open Modal */}
+        <div style={{ marginBottom: '20px' }}>
           <button
-            onClick={handleWithdraw}
-            disabled={
-              loading || (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
-            }
-            className="withdraw-btn"
+            onClick={openWithdrawModal}
+            className="open-withdraw-modal-btn"
             style={{
               width: '100%',
               background: '#ff6b35',
               border: 'none',
-              borderRadius: '12px',
-              padding: '16px',
+              borderRadius: '16px',
+              padding: '18px',
               color: 'white',
               cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '16px',
-              opacity:
-                loading ||
-                (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
-                  ? 0.6
-                  : 1,
+              fontWeight: 700,
+              fontSize: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
             }}
           >
-            {loading ? 'Processing...' : 'Withdraw Now'}
+            <span>💸</span> Start Withdrawal
           </button>
         </div>
+
+        {/* Withdrawal Modal */}
+        {showWithdrawModal && (
+          <div
+            className="withdraw-modal-overlay"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+              overflowY: 'auto',
+            }}
+            onClick={closeWithdrawModal}
+          >
+            <div
+              className="withdraw-modal-content"
+              style={{
+                background: 'linear-gradient(135deg, #1a1a27 0%, #0f0f1a 100%)',
+                borderRadius: '24px',
+                padding: '24px',
+                maxWidth: '500px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                position: 'relative',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={closeWithdrawModal}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  color: '#fff',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '10px' }}>💸</div>
+                <h2
+                  style={{
+                    marginBottom: '5px',
+                    color: '#ff6b35',
+                    fontSize: 'clamp(20px, 5vw, 28px)',
+                  }}
+                >
+                  Withdraw Cashback
+                </h2>
+              </div>
+
+              <div
+                className="balance-box"
+                style={{
+                  background: '#000000',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  marginBottom: '20px',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '14px',
+                    color: '#aaa',
+                    marginBottom: '5px',
+                  }}
+                >
+                  Available Balance
+                </div>
+                <div
+                  style={{
+                    fontSize: 'clamp(32px, 8vw, 42px)',
+                    fontWeight: 700,
+                    color: '#22a06b',
+                  }}
+                >
+                  Rs. {(userStats?.totalCashback || 0).toLocaleString()}
+                </div>
+                <div
+                  style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}
+                >
+                  Minimum withdrawal: Rs.{' '}
+                  {MIN_WITHDRAWAL_AMOUNT.toLocaleString()}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '10px',
+                    fontSize: '14px',
+                    color: '#ccc',
+                  }}
+                >
+                  Select Withdrawal Method
+                </label>
+                <div
+                  className="method-buttons"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                    gap: '10px',
+                  }}
+                >
+                  {[
+                    {
+                      id: 'easypaisa',
+                      label: '📱 EasyPaisa',
+                      color: '#22a06b',
+                    },
+                    { id: 'jazzcash', label: '💳 JazzCash', color: '#ff6b35' },
+                    { id: 'bank', label: '🏦 Bank Transfer', color: '#3b82f6' },
+                  ].map((method) => (
+                    <button
+                      key={method.id}
+                      onClick={() => setPaymentMethod(method.id)}
+                      className="method-btn"
+                      style={{
+                        background:
+                          paymentMethod === method.id
+                            ? method.color
+                            : '#1a1a27',
+                        border:
+                          paymentMethod === method.id
+                            ? 'none'
+                            : '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px',
+                        color: paymentMethod === method.id ? '#fff' : '#ccc',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                        fontSize: 'clamp(12px, 3vw, 14px)',
+                      }}
+                    >
+                      {method.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {paymentMethod === 'easypaisa' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      📱 EasyPaisa Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={easyPaisaNumber}
+                      onChange={(e) => setEasyPaisaNumber(e.target.value)}
+                      placeholder="+923001234567"
+                      className="withdraw-input"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      👤 Account Holder Name
+                    </label>
+                    <input
+                      type="text"
+                      value={easyPaisaName}
+                      onChange={(e) => setEasyPaisaName(e.target.value)}
+                      placeholder="As per CNIC"
+                      className="withdraw-input"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'jazzcash' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      💳 JazzCash Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={jazzCashNumber}
+                      onChange={(e) => setJazzCashNumber(e.target.value)}
+                      placeholder="+923001234567"
+                      className="withdraw-input"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      👤 Account Holder Name
+                    </label>
+                    <input
+                      type="text"
+                      value={jazzCashName}
+                      onChange={(e) => setJazzCashName(e.target.value)}
+                      placeholder="As per CNIC"
+                      className="withdraw-input"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'bank' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      🏦 Select Bank
+                    </label>
+                    <select
+                      value={selectedBank}
+                      onChange={(e) => setSelectedBank(e.target.value)}
+                      className="withdraw-select"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    >
+                      <option value="">-- Select Bank --</option>
+                      {bankOptions.map((bank) => (
+                        <option key={bank} value={bank}>
+                          {bank}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      🔢 Account Number
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountNumber}
+                      onChange={(e) => setBankAccountNumber(e.target.value)}
+                      placeholder="Enter bank account number"
+                      className="withdraw-input"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#ccc',
+                      }}
+                    >
+                      📝 Account Title
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountTitle}
+                      onChange={(e) => setBankAccountTitle(e.target.value)}
+                      placeholder="As per bank statement"
+                      className="withdraw-input"
+                      style={{
+                        width: '100%',
+                        background: '#1a1a27',
+                        border: '1px solid #333',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        color: '#fff',
+                        fontSize: '16px',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    fontSize: '14px',
+                    color: '#ccc',
+                  }}
+                >
+                  💰 Withdrawal Amount
+                </label>
+                <input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder={`Min. Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`}
+                  className="withdraw-input"
+                  style={{
+                    width: '100%',
+                    background: '#1a1a27',
+                    border: '1px solid #333',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    color: '#fff',
+                    fontSize: '16px',
+                  }}
+                />
+              </div>
+
+              <button
+                onClick={handleWithdraw}
+                disabled={
+                  loading ||
+                  (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
+                }
+                className="withdraw-submit-btn"
+                style={{
+                  width: '100%',
+                  background: '#ff6b35',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '16px',
+                  opacity:
+                    loading ||
+                    (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
+                      ? 0.6
+                      : 1,
+                }}
+              >
+                {loading ? 'Processing...' : 'Confirm Withdrawal'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Withdrawal History Section */}
         <div
           style={{
             background: '#1a1a27',
             borderRadius: '16px',
             padding: 'clamp(16px, 4vw, 25px)',
+            marginTop: '20px',
           }}
         >
           <h3
