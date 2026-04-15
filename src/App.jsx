@@ -3342,7 +3342,7 @@ function LiveBalanceMarquee() {
       >
         {scrollingItems.map((item, idx) => (
           <span key={idx} style={{ color: '#fff' }}>
-            👤 {item.user} withdrew Rs {item.amount.toLocaleString()}
+            👤 {item.user} withdraw Rs {item.amount.toLocaleString()}
           </span>
         ))}
       </div>
