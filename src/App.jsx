@@ -61,28 +61,28 @@ const INVESTMENT_PLANS = [
     name: 'Basic Plan',
     minAmount: 500,
     returnPercentage: 20,
-    duration: '1 day',
+    duration: 'daily',
   },
   {
     id: 2,
     name: 'Standard Plan',
     minAmount: 1000,
     returnPercentage: 25,
-    duration: '2 days',
+    duration: 'daily',
   },
   {
     id: 3,
     name: 'Premium Plan',
     minAmount: 2000,
     returnPercentage: 30,
-    duration: '3 days',
+    duration: 'daily',
   },
   {
     id: 4,
     name: 'Gold Plan',
     minAmount: 4000,
     returnPercentage: 35,
-    duration: '4 days',
+    duration: 'daily',
   },
 ];
 
