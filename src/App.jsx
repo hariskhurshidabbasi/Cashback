@@ -37,22 +37,22 @@ const EP_NUM = '03001234567';
 const EP_DISPLAY = '0300-1234567';
 
 const BASE_CASHBACK_PERCENTAGE = 15;
-const REFER_BONUS = 1500;
+const REFER_BONUS = 20;
 const INVESTMENT_RETURN_PERCENTAGE = 12;
-const MIN_WITHDRAWAL_AMOUNT = 500;
+const MIN_WITHDRAWAL_AMOUNT = 150;
 
 // Updated Payment Numbers and Names
-const EASYPAISA_NUMBER = '03480954733';
-const JAZZCASH_NUMBER = '03135259363';
+const EASYPAISA_NUMBER = '03135259363';
+const JAZZCASH_NUMBER = '03480954733';
 const SUPPORT_NUMBER = '03340397691';
 const EASYPAISA_NAME = 'Mubaraz aqaldad';
-const JAZZCASH_NAME = 'Mubariz aqaldad';
+const JAZZCASH_NAME = 'Mubaraz aqaldad';
 
 // EmailJS Configuration
-const EMAILJS_SERVICE_ID = 'service_7h2936w';
-const EMAILJS_TEMPLATE_ID = 'template_t6mxgmw';
-const EMAILJS_PUBLIC_KEY = 'OPt_6PEWJLbXNmfFY';
-const ADMIN_EMAIL = 'abbasihariskhurshid@gmail.com';
+const EMAILJS_SERVICE_ID = 'service_fque81d';
+const EMAILJS_TEMPLATE_ID = 'template_9etzbig';
+const EMAILJS_PUBLIC_KEY = 'qH8Oxg8suj0Gs185N';
+const ADMIN_EMAIL = 'mubarizadabbasi@gmail.com';
 
 // Investment Plans - Updated with percentage only
 const INVESTMENT_PLANS = [
@@ -61,28 +61,28 @@ const INVESTMENT_PLANS = [
     name: 'Basic Plan',
     minAmount: 500,
     returnPercentage: 20,
-    duration: '12 hours',
+    duration: '1 day',
   },
   {
     id: 2,
     name: 'Standard Plan',
     minAmount: 1000,
     returnPercentage: 25,
-    duration: '24 hours',
+    duration: '2 days',
   },
   {
     id: 3,
     name: 'Premium Plan',
     minAmount: 2000,
     returnPercentage: 30,
-    duration: '48 hours',
+    duration: '3 days',
   },
   {
     id: 4,
     name: 'Gold Plan',
     minAmount: 4000,
     returnPercentage: 35,
-    duration: '72 hours',
+    duration: '4 days',
   },
 ];
 
@@ -792,8 +792,11 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
               >
                 {plan.returnPercentage}% Return
               </div>
-              <div style={{ fontSize: '12px', color: '#aaa' }}>
+              <div style={{ fontSize: '12px', color: '#ffffff' }}>
                 Duration: {plan.duration}
+              </div>
+              <div style={{ fontSize: '12px', color: '#ffffff' }}>
+                WithdrawTime: 06PM to 12AM
               </div>
             </div>
           ))}
@@ -2190,8 +2193,7 @@ function ReferralPage({ currentUser, onCopyRefer, referLink }) {
             Rs. {REFER_BONUS.toLocaleString()} Bonus!
           </h2>
           <p style={{ color: '#ccc', marginBottom: '25px', fontSize: '14px' }}>
-            When your friend registers and makes their first order, you will
-            receive {REFER_BONUS} rupees extra cashback!
+            When your friend registers you get {REFER_BONUS}% of every deposit!
           </p>
           <div
             className="referral-link-box"
@@ -2615,7 +2617,7 @@ function ContactUsPage({ onNavigate }) {
                 Email
               </div>
               <a
-                href="mailto:support@cashbackstore.pk"
+                href="mailto:mubarizadabbasi@gmail.com"
                 style={{
                   fontSize: 'clamp(14px, 3vw, 18px)',
                   fontWeight: 600,
@@ -2624,7 +2626,7 @@ function ContactUsPage({ onNavigate }) {
                   wordBreak: 'break-all',
                 }}
               >
-                support@cashbackstore.pk
+                mubarizadabbasi@gmail.com
               </a>
             </div>
 

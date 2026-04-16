@@ -1,19 +1,19 @@
-import { initializeApp } from 'firebase/app'
-import { getDatabase } from 'firebase/database'
+import { initializeApp } from 'firebase/app';
+import { getDatabase } from 'firebase/database';
 
 // Firebase config (from your HTML).
 // For production, move these values to environment variables.
 const firebaseConfig = {
-  apiKey: 'AIzaSyCqpfJDi7rLviYr4FZAno6WcMXBay_ndjc',
-  authDomain: 'cashbackshop-a3732.firebaseapp.com',
-  databaseURL: 'https://cashbackshop-a3732-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId: 'cashbackshop-a3732',
-  storageBucket: 'cashbackshop-a3732.firebasestorage.app',
-  messagingSenderId: '223900685546',
-  appId: '1:223900685546:web:b65440b7071d8511aff393',
-}
+  apiKey: 'AIzaSyBsme-wxsJWvydLkgbjL6PAds06NsoAZcY',
+  authDomain: 'cashbackstore-f2aff.firebaseapp.com',
+  projectId: 'cashbackstore-f2aff',
+  storageBucket: 'cashbackstore-f2aff.firebasestorage.app',
+  messagingSenderId: '970021459044',
+  appId: '1:970021459044:web:447b74bd9a3ad4a1cefb71',
+  databaseURL:
+    'https://cashbackstore-f2aff-default-rtdb.asia-southeast1.firebasedatabase.app', // ✅ add this
+};
 
-const app = initializeApp(firebaseConfig)
+const app = initializeApp(firebaseConfig);
 
-export const rtdb = getDatabase(app)
-
+export const rtdb = getDatabase(app);
