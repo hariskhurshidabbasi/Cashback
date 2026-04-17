@@ -45,6 +45,9 @@ const MIN_WITHDRAWAL_AMOUNT = 150;
 const EASYPAISA_NUMBER = '03135259363';
 const JAZZCASH_NUMBER = '03480954733';
 const SUPPORT_NUMBER = '03340397691';
+const WITHDRAWAL_WHATSAPP_NUMBER = '03340397691'; // Number for withdrawal contact
+const WHATSAPP_CHANNEL_LINK =
+  'https://whatsapp.com/channel/0029VbD7TqOAInPfjvsky82u'; // WhatsApp Channel Link
 const EASYPAISA_NAME = 'Mubaraz aqaldad';
 const JAZZCASH_NAME = 'Mubaraz aqaldad';
 
@@ -470,21 +473,21 @@ function ProfileDropdown({
               color="inherit"
             />
             <StatBox
-              label="Cashback"
+              label="Total Balance"
               value={
                 loadingStats
                   ? '...'
-                  : `Rs. ${(userStats?.totalCashback || 0).toLocaleString()}`
+                  : `Rs. ${((userStats?.totalCashback || 0) + (userStats?.totalInvested || 0)).toLocaleString()}`
               }
               color="#22a06b"
               border
             />
             <StatBox
-              label="Refer Bonus"
+              label="Invested"
               value={
                 loadingStats
                   ? '...'
-                  : `Rs. ${(userStats?.referBonus || 0).toLocaleString()}`
+                  : `Rs. ${(userStats?.totalInvested || 0).toLocaleString()}`
               }
               color="#cf7808"
               border
@@ -696,11 +699,22 @@ function InvestmentPlansPage({ currentUser, showToast, onInvest }) {
               1000,
         });
 
+        // Add investment amount ONLY to totalInvested (NOT to totalCashback)
+        const userRef = ref(rtdb, `users/${currentUser.uid}`);
+        const userSnap = await get(userRef);
+        const currentInvested = userSnap.exists()
+          ? userSnap.val().totalInvested || 0
+          : 0;
+
+        await update(ref(rtdb, `users/${currentUser.uid}`), {
+          totalInvested: currentInvested + selectedPlan.minAmount,
+        });
+
         await set(
           ref(rtdb, `cashbackHistory/${currentUser.uid}/${investmentId}`),
           {
             type: 'investment',
-            amount: -selectedPlan.minAmount,
+            amount: selectedPlan.minAmount,
             description: `Investment in ${selectedPlan.name} of Rs. ${selectedPlan.minAmount.toLocaleString()} via ${paymentMethod === 'easypaisa' ? 'EasyPaisa' : 'JazzCash'}`,
             timestamp: Date.now(),
           },
@@ -1335,14 +1349,16 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
 
   const validateWithdrawal = () => {
     const amount = parseInt(withdrawAmount);
+    const totalBalance =
+      (userStats?.totalCashback || 0) + (userStats?.totalInvested || 0);
     if (isNaN(amount) || amount < MIN_WITHDRAWAL_AMOUNT) {
       showToast(
         `Withdrawal amount must be at least Rs. ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`,
       );
       return false;
     }
-    if (amount > (userStats?.totalCashback || 0)) {
-      showToast('You do not have enough cashback balance!');
+    if (amount > totalBalance) {
+      showToast('You do not have enough balance!');
       return false;
     }
     if (paymentMethod === 'easypaisa') {
@@ -1444,12 +1460,28 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
       const userSnap = await get(userRef);
       const currentCashback = userSnap.exists()
         ? userSnap.val().totalCashback || 0
-        : userStats?.totalCashback || 0;
+        : 0;
+      const currentInvested = userSnap.exists()
+        ? userSnap.val().totalInvested || 0
+        : 0;
 
-      const newCashback = currentCashback - amount;
+      // Deduct from cashback first, then from invested if needed
+      let newCashback = currentCashback;
+      let newInvested = currentInvested;
+      let remainingWithdraw = amount;
+
+      if (newCashback >= remainingWithdraw) {
+        newCashback -= remainingWithdraw;
+        remainingWithdraw = 0;
+      } else {
+        remainingWithdraw -= newCashback;
+        newCashback = 0;
+        newInvested -= remainingWithdraw;
+      }
 
       await update(ref(rtdb, `users/${currentUser.uid}`), {
         totalCashback: newCashback,
+        totalInvested: newInvested,
         ...userUpdateData,
       });
 
@@ -1489,7 +1521,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
 
       setShowWithdrawModal(false);
       showToast(
-        `✅ Withdrawal of Rs. ${amount.toLocaleString()} successful! New balance: Rs. ${newCashback.toLocaleString()}`,
+        `✅ Withdrawal of Rs. ${amount.toLocaleString()} successful! New balance: Rs. ${(newCashback + newInvested).toLocaleString()}`,
       );
     } catch (error) {
       console.error('Error processing withdrawal:', error);
@@ -1520,6 +1552,9 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
     setShowWithdrawModal(false);
     resetForm();
   };
+
+  const totalBalance =
+    (userStats?.totalCashback || 0) + (userStats?.totalInvested || 0);
 
   if (!currentUser)
     return (
@@ -1553,10 +1588,93 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         <div className="back-btn" onClick={() => navigate('/')}>
           ← Go Back
         </div>
-        <div className="cart-header">🏦 Withdraw Cashback</div>
+        <div className="cart-header">🏦 Withdrawal</div>
+
+        {/* WhatsApp Channel and Contact Info Section */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #25D36610, #075E5410)',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '20px',
+            border: '1px solid #25D36630',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: '28px', marginBottom: '8px' }}>📢</div>
+          <div
+            style={{
+              fontWeight: 'bold',
+              fontSize: 'clamp(14px, 4vw, 16px)',
+              color: '#25D366',
+              marginBottom: '8px',
+            }}
+          >
+            Join Our Official WhatsApp Channel
+          </div>
+          <a
+            href={WHATSAPP_CHANNEL_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-block',
+              background: '#25D366',
+              color: 'white',
+              textDecoration: 'none',
+              padding: '10px 20px',
+              borderRadius: '40px',
+              fontSize: '14px',
+              fontWeight: 600,
+              marginBottom: '15px',
+            }}
+          >
+            📱 Follow on WhatsApp
+          </a>
+          <div
+            style={{
+              height: '1px',
+              background: '#333',
+              margin: '15px 0',
+            }}
+          />
+          <div
+            style={{
+              fontSize: '18px',
+              color: '#000000',
+              marginBottom: '5px',
+              fontWeight: 'bold',
+            }}
+          >
+            For withdrawal support, contact us on WhatsApp:
+          </div>
+          <a
+            href={`https://wa.me/${WITHDRAWAL_WHATSAPP_NUMBER}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 'clamp(18px, 5vw, 22px)',
+              fontWeight: 700,
+              color: '#25D366',
+              textDecoration: 'none',
+              display: 'inline-block',
+            }}
+          >
+            {WITHDRAWAL_WHATSAPP_NUMBER}
+          </a>
+          <div
+            style={{
+              fontSize: '15px',
+              color: '#090909',
+              marginTop: '8px',
+              fontWeight: '700',
+            }}
+          >
+            Available 06PM to 12AM for withdrawal
+          </div>
+        </div>
 
         {/* Withdrawal Button to Open Modal */}
-        <div style={{ marginBottom: '20px' }}>
+        {/* <div style={{ marginBottom: '20px' }}>
           <button
             onClick={openWithdrawModal}
             className="open-withdraw-modal-btn"
@@ -1578,7 +1696,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           >
             <span>💸</span> Start Withdrawal
           </button>
-        </div>
+        </div> */}
 
         {/* Withdrawal Modal */}
         {showWithdrawModal && (
@@ -1645,7 +1763,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     fontSize: 'clamp(20px, 5vw, 28px)',
                   }}
                 >
-                  Withdraw Cashback
+                  Withdraw Balance
                 </h2>
               </div>
 
@@ -1675,7 +1793,14 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                     color: '#22a06b',
                   }}
                 >
-                  Rs. {(userStats?.totalCashback || 0).toLocaleString()}
+                  Rs. {totalBalance.toLocaleString()}
+                </div>
+                <div
+                  style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}
+                >
+                  Cashback: Rs.{' '}
+                  {(userStats?.totalCashback || 0).toLocaleString()} | Invested:
+                  Rs. {(userStats?.totalInvested || 0).toLocaleString()}
                 </div>
                 <div
                   style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}
@@ -1862,7 +1987,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 </div>
               )}
 
-              {paymentMethod === 'bank' && (
+              {/* {paymentMethod === 'bank' && (
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ marginBottom: '12px' }}>
                     <label
@@ -1987,10 +2112,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
 
               <button
                 onClick={handleWithdraw}
-                disabled={
-                  loading ||
-                  (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
-                }
+                disabled={loading || totalBalance < MIN_WITHDRAWAL_AMOUNT}
                 className="withdraw-submit-btn"
                 style={{
                   width: '100%',
@@ -2003,28 +2125,25 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                   fontWeight: 600,
                   fontSize: '16px',
                   opacity:
-                    loading ||
-                    (userStats?.totalCashback || 0) < MIN_WITHDRAWAL_AMOUNT
-                      ? 0.6
-                      : 1,
+                    loading || totalBalance < MIN_WITHDRAWAL_AMOUNT ? 0.6 : 1,
                 }}
               >
                 {loading ? 'Processing...' : 'Confirm Withdrawal'}
-              </button>
+              </button> */}
             </div>
           </div>
         )}
 
         {/* Withdrawal History Section */}
-        <div
+        {/* <div
           style={{
             background: '#1a1a27',
             borderRadius: '16px',
             padding: 'clamp(16px, 4vw, 25px)',
             marginTop: '20px',
           }}
-        >
-          <h3
+        > */}
+        {/* <h3
             style={{
               marginBottom: '20px',
               display: 'flex',
@@ -2103,8 +2222,8 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 </div>
               </div>
             ))
-          )}
-        </div>
+          )} */}
+        {/* </div> */}
       </div>
     </div>
   );
@@ -3378,8 +3497,8 @@ function InfoCards({ onNavigate, showInfoCards, setShowInfoCards }) {
   const cards = [
     {
       icon: '🏦',
-      title: 'Withdraw Cashback',
-      description: 'Withdraw your cashback directly',
+      title: 'Withdraw Balance',
+      description: 'Withdraw your balance directly',
       color: '#ff6b35',
       link: '/withdraw',
     },
@@ -4023,7 +4142,9 @@ function AppShell() {
       userPhone !== 'Not Logged In'
         ? userPhone.replace(/(\+92\d{3})\d{6}/, '$1******')
         : 'Not Logged In';
-    const totalBalance = (userStats?.totalCashback || 0).toLocaleString();
+    const totalBalance = (
+      (userStats?.totalCashback || 0) + (userStats?.totalInvested || 0)
+    ).toLocaleString();
     return (
       <div className="page active">
         <section className="hero">
