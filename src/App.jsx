@@ -1696,7 +1696,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           </div>
         </div>
 
-        {/* Withdrawal Button to Open Modal */}
+        {/* Withdrawal Button to Open Modal
         <div style={{ marginBottom: '20px' }}>
           <button
             onClick={openWithdrawModal}
@@ -1719,10 +1719,10 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           >
             <span>💸</span> Start Withdrawal
           </button>
-        </div>
+        </div> */}
 
         {/* Withdrawal Modal */}
-        {showWithdrawModal && (
+        {/* {showWithdrawModal && (
           <div
             className="withdraw-modal-overlay"
             style={{
@@ -2155,10 +2155,10 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
               </button>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Withdrawal History Section */}
-        <div
+        {/* <div
           style={{
             background: '#1a1a27',
             borderRadius: '16px',
@@ -2246,7 +2246,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
               </div>
             ))
           )}
-        </div>
+        </div> */}
       </div>
     </div>
   );
