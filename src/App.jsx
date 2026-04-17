@@ -1283,6 +1283,28 @@ function MyInvestmentsPage({ currentUser, showToast }) {
   );
 }
 
+// Function to open WhatsApp channel correctly
+const openWhatsAppChannel = () => {
+  // For mobile devices - try to open with WhatsApp intent
+  const channelId = '0029VbD7TqOAInPfjvsky82u';
+  const whatsappUrl = `https://whatsapp.com/channel/${channelId}`;
+
+  // For mobile - try to open with intent
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.location.href = whatsappUrl;
+  } else {
+    // For desktop - open in new tab
+    window.open(whatsappUrl, '_blank');
+  }
+};
+
+// Function to open WhatsApp chat
+const openWhatsAppChat = (number) => {
+  const cleanNumber = number.replace(/\D/g, '');
+  const whatsappUrl = `https://wa.me/${cleanNumber}`;
+  window.open(whatsappUrl, '_blank');
+};
+
 // Withdrawal Page Component - With Modal for Mobile
 function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -1612,24 +1634,24 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           >
             Join Our Official WhatsApp Channel
           </div>
-          <a
-            href={WHATSAPP_CHANNEL_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={openWhatsAppChannel}
             style={{
               display: 'inline-block',
               background: '#25D366',
               color: 'white',
+              border: 'none',
               textDecoration: 'none',
               padding: '10px 20px',
               borderRadius: '40px',
               fontSize: '14px',
               fontWeight: 600,
               marginBottom: '15px',
+              cursor: 'pointer',
             }}
           >
             📱 Follow on WhatsApp
-          </a>
+          </button>
           <div
             style={{
               height: '1px',
@@ -1647,20 +1669,21 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           >
             For withdrawal support, contact us on WhatsApp:
           </div>
-          <a
-            href={`https://wa.me/${WITHDRAWAL_WHATSAPP_NUMBER}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => openWhatsAppChat(WITHDRAWAL_WHATSAPP_NUMBER)}
             style={{
               fontSize: 'clamp(18px, 5vw, 22px)',
               fontWeight: 700,
               color: '#25D366',
+              background: 'none',
+              border: 'none',
               textDecoration: 'none',
               display: 'inline-block',
+              cursor: 'pointer',
             }}
           >
             {WITHDRAWAL_WHATSAPP_NUMBER}
-          </a>
+          </button>
           <div
             style={{
               fontSize: '15px',
@@ -1674,7 +1697,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
         </div>
 
         {/* Withdrawal Button to Open Modal */}
-        {/* <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '20px' }}>
           <button
             onClick={openWithdrawModal}
             className="open-withdraw-modal-btn"
@@ -1696,7 +1719,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
           >
             <span>💸</span> Start Withdrawal
           </button>
-        </div> */}
+        </div>
 
         {/* Withdrawal Modal */}
         {showWithdrawModal && (
@@ -1987,7 +2010,7 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 </div>
               )}
 
-              {/* {paymentMethod === 'bank' && (
+              {paymentMethod === 'bank' && (
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ marginBottom: '12px' }}>
                     <label
@@ -2129,21 +2152,21 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 }}
               >
                 {loading ? 'Processing...' : 'Confirm Withdrawal'}
-              </button> */}
+              </button>
             </div>
           </div>
         )}
 
         {/* Withdrawal History Section */}
-        {/* <div
+        <div
           style={{
             background: '#1a1a27',
             borderRadius: '16px',
             padding: 'clamp(16px, 4vw, 25px)',
             marginTop: '20px',
           }}
-        > */}
-        {/* <h3
+        >
+          <h3
             style={{
               marginBottom: '20px',
               display: 'flex',
@@ -2222,8 +2245,8 @@ function WithdrawalPage({ currentUser, userStats, loadUserStats, showToast }) {
                 </div>
               </div>
             ))
-          )} */}
-        {/* </div> */}
+          )}
+        </div>
       </div>
     </div>
   );
